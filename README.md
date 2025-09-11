@@ -41,4 +41,7 @@ Sautify is designed with a user‑first mindset. It avoids unnecessary data coll
 
 Have an idea, found a bug, or want to shape what comes next? Open an issue or share feedback—your input helps Sautify stay fast, focused, and delightful.
 
+> `Leave a star 🌟`.
+
+
 — Enjoy the music.
