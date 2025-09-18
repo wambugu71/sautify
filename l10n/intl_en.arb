@@ -1,0 +1,14 @@
+{
+  "@@locale": "en",
+  "appTitle": "Sautify",
+  "homeTitle": "Home",
+  "libraryTitle": "Library",
+  "settingsTitle": "Settings",
+  "searchHint": "Search songs, artists, albums",
+  "nowPlaying": "Now Playing",
+  "songsCount": "{count, plural, one {# song} other {# songs}}",
+  "downloaded": "Downloaded",
+  "offline": "Offline",
+  "error": "Error",
+  "retry": "Retry"
+}

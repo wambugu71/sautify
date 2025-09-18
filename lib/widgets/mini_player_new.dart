@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
@@ -145,50 +151,63 @@ class MiniPlayer extends StatelessWidget {
                           visualDensity: VisualDensity.compact,
                         ),
 
-                        // Play/Pause button with loading state
-                        StreamBuilder<PlayerState>(
-                          stream: audioService.playerStateStream,
-                          builder: (context, snapshot) {
-                            final state = snapshot.data;
-                            final isLoading =
-                                state?.processingState ==
-                                    ProcessingState.loading ||
-                                state?.processingState ==
-                                    ProcessingState.buffering;
-                            final isPlaying =
-                                trackInfoSnapshot.data?.isPlaying ?? false;
+                        // Play/Pause button with loading state (service preparing OR engine loading)
+                        ValueListenableBuilder<bool>(
+                          valueListenable: audioService.isPreparing,
+                          builder: (context, preparing, _) {
+                            return StreamBuilder<PlayerState>(
+                              stream: audioService.playerStateStream,
+                              builder: (context, snapshot) {
+                                final state = snapshot.data;
+                                final effectivePlaying =
+                                    state?.playing ??
+                                    (trackInfoSnapshot.data?.isPlaying ??
+                                        false);
+                                final engineLoading =
+                                    state?.processingState ==
+                                        ProcessingState.loading ||
+                                    state?.processingState ==
+                                        ProcessingState.buffering;
+                                final isLoading =
+                                    (!effectivePlaying) &&
+                                    (preparing || engineLoading);
 
-                            if (isLoading) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4.0,
-                                ),
-                                child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      txtcolor,
+                                if (isLoading) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4.0,
                                     ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            return IconButton(
-                              onPressed: () async {
-                                if (isPlaying) {
-                                  await audioService.pause();
-                                } else {
-                                  await audioService.play();
+                                    child: SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              txtcolor,
+                                            ),
+                                      ),
+                                    ),
+                                  );
                                 }
+
+                                return IconButton(
+                                  onPressed: () async {
+                                    if (effectivePlaying) {
+                                      await audioService.pause();
+                                    } else {
+                                      await audioService.play();
+                                    }
+                                  },
+                                  icon: Icon(
+                                    effectivePlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    color: txtcolor,
+                                    size: 28,
+                                  ),
+                                );
                               },
-                              icon: Icon(
-                                isPlaying ? Icons.pause : Icons.play_arrow,
-                                color: txtcolor,
-                                size: 28,
-                              ),
                             );
                           },
                         ),

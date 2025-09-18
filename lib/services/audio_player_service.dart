@@ -1,13 +1,21 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:dio/dio.dart' show Options;
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:sautifyv2/db/library_store.dart';
 import 'package:sautifyv2/fetch_music_data.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:sautifyv2/models/track_info.dart';
+import 'package:sautifyv2/services/dio_client.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
 import 'package:sautifyv2/services/settings_service.dart';
 
@@ -38,6 +46,9 @@ class AudioPlayerService extends ChangeNotifier {
   // Preloading control
   static const int _preloadCount = 5; // how many upcoming items to preload
   final Set<int> _preloadedIndices = <int>{};
+
+  // Maintain mapping from audio child index -> playlist index for the current source
+  List<int> _childToPlaylistIndex = <int>[];
 
   // Current track stream controller
   final StreamController<StreamingData?> _currentTrackController =
@@ -277,14 +288,15 @@ class AudioPlayerService extends ChangeNotifier {
     // Listen to player events
     _player.currentIndexStream.listen((audioIndex) {
       if (audioIndex != null) {
-        // Convert audio source index back to playlist index
-        final newIndex = _getPlaylistIndexFromAudioIndex(audioIndex);
+        // Map effective sequence index back to playlist index (shuffle-aware)
+        final newIndex = _sequenceIndexToPlaylistIndex(audioIndex);
         if (newIndex != _currentIndex) {
           _currentIndex = newIndex;
           _currentTrackController.add(currentTrack);
           _emitTrackInfo(force: true);
           notifyListeners();
           _preloadUpcomingSongs();
+          _warmNextConnection();
         }
       }
     });
@@ -355,8 +367,48 @@ class AudioPlayerService extends ChangeNotifier {
       );
       if (requestId != _loadRequestId) return;
 
-      await _player.setShuffleModeEnabled(_isShuffleEnabled);
+      // Proactively start preparing the immediate next track so pressing
+      // "Next" from the first song switches quickly.
+      if (_playlist.length > 1) {
+        final nextIdx = (_currentIndex + 1) % _playlist.length;
+        // Fire-and-forget; resolve streaming data without triggering a
+        // rebuild that could affect the current track's position.
+        // ignore: discarded_futures
+        _streamingService
+            .fetchStreamingData(
+              _playlist[nextIdx].videoId,
+              _getPreferredQuality(),
+            )
+            .then((result) async {
+              if (result != null) {
+                // Merge streaming details into the playlist but avoid a rebuild.
+                final old = _playlist[nextIdx];
+                _playlist[nextIdx] = old.copyWith(
+                  title: old.title.isNotEmpty ? old.title : result.title,
+                  artist: old.artist.isNotEmpty ? old.artist : result.artist,
+                  thumbnailUrl: result.thumbnailUrl ?? old.thumbnailUrl,
+                  duration: old.duration ?? result.duration,
+                  streamUrl: result.streamUrl,
+                  quality: result.quality,
+                  cachedAt: result.cachedAt,
+                  isAvailable: result.isAvailable,
+                );
+                // Ensure the next track is present in the audio source mapping
+                // so users can skip immediately.
+                if (!_childToPlaylistIndex.contains(nextIdx)) {
+                  await _rebuildAudioSource(
+                    preferPlaylistIndex: _currentIndex,
+                    preservePosition: true,
+                    requestId: requestId,
+                  );
+                }
+              }
+            });
+      }
+
+      // Apply shuffle/loop preferences before starting playback
       await _player.setLoopMode(_loopMode);
+      await _player.setShuffleModeEnabled(_isShuffleEnabled);
 
       if (autoPlay) {
         // Seek to the selected index and start playback
@@ -365,9 +417,14 @@ class AudioPlayerService extends ChangeNotifier {
 
       // Preload upcoming tracks
       _preloadUpcomingSongs();
+      _warmNextConnection();
 
       // Preload album art images for current and upcoming tracks
       _preloadImages();
+
+      // Also warm the entire playlist's streaming URLs in background
+      // to make arbitrary queue taps instant
+      _warmPlaylistStreamingUrls();
 
       // Emit initial current track
       _currentTrackController.add(currentTrack);
@@ -394,6 +451,34 @@ class AudioPlayerService extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// Issue a tiny byte-range request to the next track to warm DNS/TLS/CDN.
+  void _warmNextConnection() {
+    () async {
+      try {
+        final upcoming = _getUpcomingIndices();
+        if (upcoming.isEmpty) return;
+        final idx = upcoming.first;
+        if (idx < 0 || idx >= _playlist.length) return;
+        final t = _playlist[idx];
+        if (!t.isReady || t.isLocal || t.streamUrl == null) return;
+        final url = t.streamUrl!;
+        if (!(url.startsWith('http://') || url.startsWith('https://'))) return;
+        await DioClient.instance.get(
+          url,
+          options: Options(
+            headers: const {'Range': 'bytes=0-0'},
+            followRedirects: true,
+            receiveTimeout: const Duration(seconds: 5),
+            sendTimeout: const Duration(seconds: 5),
+            validateStatus: (s) => s != null && (s < 400 || s == 416),
+          ),
+        );
+      } catch (_) {
+        // best-effort only
+      }
+    }();
   }
 
   /// Insert track at specific position
@@ -487,39 +572,57 @@ class AudioPlayerService extends ChangeNotifier {
     if (index >= 0 && index < _playlist.length) {
       isPreparing.value = true;
       try {
-        // Ensure the target track is ready
+        // Ensure the target track is ready and included in the audio source
         await _ensureTrackReady(index);
 
-        // Check if the track is actually ready now
+        // Verify readiness
         if (!_playlist[index].isReady) {
-          print('Warning: Track at index $index is not ready for playback');
+          if (kDebugMode) {
+            print('Warning: Track at index $index is not ready for playback');
+          }
           return;
         }
 
-        // Update current index when seeking to a specific track
-        if (index != _currentIndex) {
-          _currentIndex = index;
-          _currentTrackController.add(currentTrack);
-          _emitTrackInfo(force: true);
-          notifyListeners();
-
-          // Preload images for the new current track and upcoming tracks
-          _preloadImages();
+        // If mapping doesn't yet include this playlist index, rebuild once more
+        if (!_childToPlaylistIndex.contains(index)) {
+          await _rebuildAudioSource(
+            preferPlaylistIndex: _currentIndex,
+            preservePosition: true,
+          );
         }
 
-        // Convert playlist index to audio source index
-        final audioSourceIndex = _getAudioSourceIndex(index);
-
-        // Ensure the audio source index is valid
-        if (audioSourceIndex >= 0 && _audioSource != null) {
-          try {
-            await _player.seek(position, index: audioSourceIndex);
-            await _player.play(); // Ensure playback starts
-          } catch (e) {
-            print('Error seeking to audio source index $audioSourceIndex: $e');
-            // Fallback: try to play without seeking to specific index
-            await _player.play();
+        // If still not included, abort gracefully (avoid seeking wrong track)
+        final childIndex = _childToPlaylistIndex.indexOf(index);
+        if (_audioSource == null || childIndex < 0) {
+          if (kDebugMode) {
+            print('Seek aborted: target index $index not in audio source yet');
           }
+          return;
+        }
+
+        // Compute effective (sequence) index under current shuffle state
+        final effectiveIndex = _childIndexToSequenceIndex(childIndex);
+
+        try {
+          await _player.seek(position, index: effectiveIndex);
+          await _player.play(); // Ensure playback starts
+
+          // Update current metadata/UI only after a successful seek
+          if (index != _currentIndex) {
+            _currentIndex = index;
+            _currentTrackController.add(currentTrack);
+            _emitTrackInfo(force: true);
+            notifyListeners();
+
+            // Preload images for the new current track and upcoming tracks
+            _preloadImages();
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error seeking to effective index $effectiveIndex: $e');
+          }
+          // Fallback: try to play without seeking to specific index
+          await _player.play();
         }
       } finally {
         isPreparing.value = false;
@@ -531,69 +634,163 @@ class AudioPlayerService extends ChangeNotifier {
   Future<void> skipToNext() async {
     if (_playlist.isEmpty) return;
 
-    int nextIndex = (_currentIndex + 1) % _playlist.length;
+    int nextIndex;
+    if (_isShuffleEnabled && _childToPlaylistIndex.isNotEmpty) {
+      final seqLen = _childToPlaylistIndex.length;
+      final currentSeq =
+          _player.currentIndex ??
+          _childIndexToSequenceIndex(_getAudioSourceIndex(_currentIndex));
+      final nextSeq = (currentSeq + 1) % seqLen;
+      nextIndex = _sequenceIndexToPlaylistIndex(nextSeq);
+    } else {
+      nextIndex = (_currentIndex + 1) % _playlist.length;
+    }
 
-    // Use the seek method which handles all the complexity
+    // Prefer immediate movement among currently ready children when possible.
+    final hasMultipleReadyChildren = _childToPlaylistIndex.length > 1;
+
+    final beforeIndex = _currentIndex;
     await seek(Duration.zero, index: nextIndex);
+
+    // If target wasn’t ready and nothing changed, try advancing to next ready child.
+    if (_currentIndex == beforeIndex && hasMultipleReadyChildren) {
+      try {
+        await _player.seekToNext();
+      } catch (_) {
+        // no-op
+      }
+    }
   }
 
   /// Skip to previous track
   Future<void> skipToPrevious() async {
     if (_playlist.isEmpty) return;
-    int prevIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
 
-    // Use the seek method which handles all the complexity
+    int prevIndex;
+    if (_isShuffleEnabled && _childToPlaylistIndex.isNotEmpty) {
+      final seqLen = _childToPlaylistIndex.length;
+      final currentSeq =
+          _player.currentIndex ??
+          _childIndexToSequenceIndex(_getAudioSourceIndex(_currentIndex));
+      final prevSeq = (currentSeq - 1 + seqLen) % seqLen;
+      prevIndex = _sequenceIndexToPlaylistIndex(prevSeq);
+    } else {
+      prevIndex = (_currentIndex - 1 + _playlist.length) % _playlist.length;
+    }
+
+    final hasMultipleReadyChildren = _childToPlaylistIndex.length > 1;
+
+    final beforeIndex = _currentIndex;
     await seek(Duration.zero, index: prevIndex);
-  }
 
-  /// Get the playlist index from an audio source index
-  int _getPlaylistIndexFromAudioIndex(int audioIndex) {
-    if (audioIndex < 0) return _currentIndex;
-
-    int currentAudioIndex = 0;
-    for (int i = 0; i < _playlist.length; i++) {
-      if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
-        if (currentAudioIndex == audioIndex) {
-          return i;
-        }
-        currentAudioIndex++;
+    if (_currentIndex == beforeIndex && hasMultipleReadyChildren) {
+      try {
+        await _player.seekToPrevious();
+      } catch (_) {
+        // no-op
       }
     }
-    return _currentIndex; // Fallback to current index
   }
 
-  /// Get the index in the audio source for a playlist index
-  int _getAudioSourceIndex(int playlistIndex) {
-    if (playlistIndex < 0 || playlistIndex >= _playlist.length) {
-      return 0; // Fallback to first track
+  /// Get indices of upcoming tracks to preload
+  List<int> _getUpcomingIndices() {
+    final indices = <int>[];
+
+    if (_playlist.isEmpty) return indices;
+
+    if (_isShuffleEnabled && _childToPlaylistIndex.isNotEmpty) {
+      // Preload according to shuffle sequence order
+      final seqLen = _childToPlaylistIndex.length;
+      final currentSeq =
+          _player.currentIndex ??
+          _childIndexToSequenceIndex(_getAudioSourceIndex(_currentIndex));
+      for (int i = 1; i <= _preloadCount; i++) {
+        final seqIndex = (currentSeq + i) % seqLen;
+        final playlistIndex = _sequenceIndexToPlaylistIndex(seqIndex);
+        if (playlistIndex >= 0 && playlistIndex < _playlist.length) {
+          indices.add(playlistIndex);
+        }
+      }
+    } else {
+      // Linear order when not shuffled
+      for (int i = 1; i <= _preloadCount; i++) {
+        final nextIndex = (_currentIndex + i) % _playlist.length;
+        indices.add(nextIndex);
+      }
     }
 
+    return indices;
+  }
+
+  /// Map effective sequence index (shuffle-aware) -> playlist index
+  int _sequenceIndexToPlaylistIndex(int sequenceIndex) {
+    if (sequenceIndex < 0) return _currentIndex;
+    // Resolve child index from sequence index when shuffled
+    int childIndex = sequenceIndex;
+    if (_player.shuffleModeEnabled) {
+      final shuffle = _player.shuffleIndices;
+      if (sequenceIndex >= shuffle.length) {
+        return _currentIndex;
+      }
+      childIndex = shuffle[sequenceIndex];
+    }
+    if (childIndex < 0 || childIndex >= _childToPlaylistIndex.length) {
+      return _currentIndex;
+    }
+    return _childToPlaylistIndex[childIndex];
+  }
+
+  /// Map playlist index -> child index in ConcatenatingAudioSource
+  int _playlistIndexToChildIndex(int playlistIndex) {
+    if (playlistIndex < 0 || playlistIndex >= _playlist.length) return -1;
+    // Use mapping if available
+    if (_childToPlaylistIndex.isNotEmpty) {
+      final childIndex = _childToPlaylistIndex.indexOf(playlistIndex);
+      return childIndex; // may be -1 if not ready/not present
+    }
+    // Fallback to counting ready tracks (should rarely happen)
     int audioIndex = 0;
     for (int i = 0; i < playlistIndex && i < _playlist.length; i++) {
       if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
         audioIndex++;
       }
     }
+    return audioIndex;
+  }
 
-    // Ensure the target track itself is ready
-    if (!_playlist[playlistIndex].isReady ||
-        _playlist[playlistIndex].streamUrl == null) {
-      // Find the nearest ready track
-      for (int i = playlistIndex; i < _playlist.length; i++) {
-        if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
-          return _getAudioSourceIndex(i);
-        }
-      }
-      // If no track after, try before
-      for (int i = playlistIndex - 1; i >= 0; i--) {
-        if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
-          return _getAudioSourceIndex(i);
-        }
-      }
-      return 0; // Fallback
+  /// Map child index -> effective sequence index under current shuffle
+  int _childIndexToSequenceIndex(int childIndex) {
+    if (!_player.shuffleModeEnabled) return childIndex;
+    final shuffle = _player.shuffleIndices;
+    final seqIndex = shuffle.indexOf(childIndex);
+    return seqIndex >= 0 ? seqIndex : childIndex;
+  }
+
+  /// Get the index in the audio source for a playlist index (child index)
+  int _getAudioSourceIndex(int playlistIndex) {
+    if (playlistIndex < 0 || playlistIndex >= _playlist.length) {
+      return 0; // Fallback to first track
     }
 
-    return audioIndex;
+    // First try mapping built during _rebuildAudioSource
+    final mapped = _playlistIndexToChildIndex(playlistIndex);
+    if (mapped >= 0) return mapped;
+
+    // If the target track itself is not ready, attempt to find nearest ready
+    for (int i = playlistIndex; i < _playlist.length; i++) {
+      if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
+        final m = _playlistIndexToChildIndex(i);
+        if (m >= 0) return m;
+      }
+    }
+    for (int i = playlistIndex - 1; i >= 0; i--) {
+      if (_playlist[i].isReady && _playlist[i].streamUrl != null) {
+        final m = _playlistIndexToChildIndex(i);
+        if (m >= 0) return m;
+      }
+    }
+
+    return 0; // Fallback
   }
 
   /// Set shuffle mode
@@ -717,10 +914,41 @@ class AudioPlayerService extends ChangeNotifier {
 
         // Rebuild the audio source to include this track in the right position
         await _rebuildAudioSource(
-          preferPlaylistIndex: index,
-          preservePosition: false,
+          // Always prefer staying on the current playing index to avoid
+          // unexpected jumps when preparing other tracks in the background.
+          preferPlaylistIndex: _currentIndex,
+          preservePosition: true,
           requestId: requestId,
         );
+      }
+    } else {
+      // Track is already ready but may not have been added to the audio source yet.
+      // If the mapping does not contain this playlist index, rebuild to include it.
+      if (!_childToPlaylistIndex.contains(index)) {
+        await _rebuildAudioSource(
+          preferPlaylistIndex: _currentIndex,
+          preservePosition: true,
+          requestId: requestId,
+        );
+      }
+    }
+  }
+
+  /// Warm up streaming URLs for the whole playlist in the background
+  Future<void> _warmPlaylistStreamingUrls() async {
+    try {
+      // Collect all tracks that aren't ready yet
+      final pending = _playlist
+          .where((t) => !t.isReady || t.streamUrl == null)
+          .map((t) => t.videoId)
+          .toList();
+      if (pending.isEmpty) return;
+
+      // Batch process all pending; helper will update playlist and rebuild once
+      await _batchProcessTracks(pending);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Warm-up failed: $e');
       }
     }
   }
@@ -740,59 +968,6 @@ class AudioPlayerService extends ChangeNotifier {
       await _batchProcessTracks(videoIds);
       _preloadedIndices.addAll(newIndicesToPreload);
     }
-  }
-
-  /// Get indices of upcoming tracks to preload
-  List<int> _getUpcomingIndices() {
-    final indices = <int>[];
-
-    for (int i = 1; i <= _preloadCount; i++) {
-      int nextIndex;
-
-      if (_isShuffleEnabled) {
-        // For shuffle mode, we can't predict the next songs
-        // So we preload a few near-future ones by index
-        nextIndex = (_currentIndex + i) % _playlist.length;
-      } else {
-        nextIndex = (_currentIndex + i) % _playlist.length;
-      }
-
-      if (nextIndex < _playlist.length) {
-        indices.add(nextIndex);
-      }
-    }
-
-    return indices;
-  }
-
-  /// Handle playback completion
-  Future<void> _handlePlaybackCompleted() async {
-    if (_loopMode == LoopMode.one) {
-      // Loop current track
-      await _player.seek(Duration.zero);
-      await _player.play();
-    } else if (_loopMode == LoopMode.all ||
-        (_currentIndex + 1) < _playlist.length) {
-      // Continue to next track or loop playlist
-      await skipToNext();
-    } else if (_loopMode == LoopMode.all) {
-      // Loop back to the beginning
-      _currentIndex = 0;
-      await _ensureTrackReady(0);
-      await _player.seek(Duration.zero, index: 0);
-      await _player.play();
-    } else {
-      // Playlist ended
-      await _player.stop();
-      notifyListeners();
-    }
-  }
-
-  /// Clear cache and cleanup
-  void clearCache() {
-    _streamingService.clearExpiredCache();
-    _preloadedIndices.clear();
-    _imageCacheService.clearCache();
   }
 
   /// Preload album art images for better caching
@@ -829,13 +1004,15 @@ class AudioPlayerService extends ChangeNotifier {
 
     // Build children for ready tracks in playlist order
     final children = <AudioSource>[];
-    final readyIndices = <int>[]; // Map from audio index to playlist index
+    final readyIndices =
+        <int>[]; // Map from child (audio) index to playlist index
     for (int i = 0; i < _playlist.length; i++) {
       final t = _playlist[i];
       if (t.isReady && t.streamUrl != null) {
+        final uri = _toPlayableUri(t.streamUrl!, isLocal: t.isLocal);
         children.add(
           AudioSource.uri(
-            Uri.parse(t.streamUrl!),
+            uri,
             tag: MediaItem(
               id: t.videoId,
               title: t.title,
@@ -844,7 +1021,7 @@ class AudioPlayerService extends ChangeNotifier {
               artUri: t.thumbnailUrl != null
                   ? Uri.tryParse(t.thumbnailUrl!)
                   : null,
-              extras: {'videoId': t.videoId},
+              extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
             ),
           ),
         );
@@ -857,6 +1034,9 @@ class AudioPlayerService extends ChangeNotifier {
       return;
     }
 
+    // Update mapping for later conversions
+    _childToPlaylistIndex = List<int>.from(readyIndices);
+
     final wasPlaying = _player.playing;
     final prevPosition = _player.position;
     final desiredPlaylistIndex = (preferPlaylistIndex ?? _currentIndex).clamp(
@@ -864,11 +1044,11 @@ class AudioPlayerService extends ChangeNotifier {
       _playlist.length - 1,
     );
 
-    // Compute new audio index corresponding to desired playlist index
-    int newAudioIndex = 0;
+    // Compute new child index corresponding to desired playlist index
+    int newChildIndex;
     if (_playlist[desiredPlaylistIndex].isReady &&
         _playlist[desiredPlaylistIndex].streamUrl != null) {
-      newAudioIndex = _getAudioSourceIndex(desiredPlaylistIndex);
+      newChildIndex = _getAudioSourceIndex(desiredPlaylistIndex);
     } else {
       // If desired track not ready, pick the next available ready track after it
       int? fallbackPlaylistIndex;
@@ -881,7 +1061,7 @@ class AudioPlayerService extends ChangeNotifier {
       fallbackPlaylistIndex ??= readyIndices.isNotEmpty
           ? readyIndices.first
           : 0;
-      newAudioIndex = _getAudioSourceIndex(fallbackPlaylistIndex);
+      newChildIndex = _getAudioSourceIndex(fallbackPlaylistIndex);
     }
 
     // Create and set the new audio source
@@ -899,17 +1079,116 @@ class AudioPlayerService extends ChangeNotifier {
     // Before applying, ensure this call hasn't been superseded
     if (requestId != null && requestId != _loadRequestId) return;
 
-    await _player.setAudioSource(
-      newSource,
-      initialIndex: newAudioIndex.clamp(0, children.length - 1),
-      initialPosition: keepPosition ? prevPosition : Duration.zero,
-    );
+    // To guarantee initial index selects the intended child regardless of shuffle,
+    // temporarily disable shuffle, set source with child index, then restore shuffle mode.
+    final bool wasShuffled = _player.shuffleModeEnabled;
+    if (wasShuffled) {
+      await _player.setShuffleModeEnabled(false);
+    }
+
+    try {
+      await _player.setAudioSource(
+        newSource,
+        initialIndex: newChildIndex.clamp(0, children.length - 1),
+        initialPosition: keepPosition ? prevPosition : Duration.zero,
+      );
+    } on PlayerException catch (e) {
+      // Auto-recovery: attempt to refresh the failing track's URL and retry once
+      if (kDebugMode) {
+        print('PlayerException during setAudioSource: ${e.message}');
+      }
+      final failingPlaylistIndex = _childToPlaylistIndex.isNotEmpty
+          ? _childToPlaylistIndex[newChildIndex.clamp(
+              0,
+              _childToPlaylistIndex.length - 1,
+            )]
+          : _currentIndex;
+      final refreshed = await _streamingService.refreshStreamingData(
+        _playlist[failingPlaylistIndex].videoId,
+        _getPreferredQuality(),
+      );
+      if (refreshed != null) {
+        final old = _playlist[failingPlaylistIndex];
+        _playlist[failingPlaylistIndex] = old.copyWith(
+          streamUrl: refreshed.streamUrl,
+          cachedAt: refreshed.cachedAt,
+          quality: refreshed.quality,
+          isAvailable: refreshed.isAvailable,
+          title: old.title.isNotEmpty ? old.title : refreshed.title,
+          artist: old.artist.isNotEmpty ? old.artist : refreshed.artist,
+          thumbnailUrl: refreshed.thumbnailUrl ?? old.thumbnailUrl,
+          duration: old.duration ?? refreshed.duration,
+        );
+
+        // Rebuild children for ready tracks again
+        final retryChildren = <AudioSource>[];
+        final retryReadyIndices = <int>[];
+        for (int i = 0; i < _playlist.length; i++) {
+          final t = _playlist[i];
+          if (t.isReady && t.streamUrl != null) {
+            retryChildren.add(
+              AudioSource.uri(
+                _toPlayableUri(t.streamUrl!, isLocal: t.isLocal),
+                tag: MediaItem(
+                  id: t.videoId,
+                  title: t.title,
+                  artist: t.artist,
+                  duration: t.duration,
+                  artUri: t.thumbnailUrl != null
+                      ? Uri.tryParse(t.thumbnailUrl!)
+                      : null,
+                  extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+                ),
+              ),
+            );
+            retryReadyIndices.add(i);
+          }
+        }
+
+        if (retryChildren.isNotEmpty) {
+          _childToPlaylistIndex = List<int>.from(retryReadyIndices);
+          final retrySource = ConcatenatingAudioSource(
+            children: retryChildren,
+            useLazyPreparation: true,
+          );
+          await _player.setAudioSource(
+            retrySource,
+            initialIndex: _getAudioSourceIndex(
+              _currentIndex,
+            ).clamp(0, retryChildren.length - 1),
+            initialPosition: keepPosition ? prevPosition : Duration.zero,
+          );
+          _audioSource = retrySource;
+        } else {
+          rethrow;
+        }
+      } else {
+        rethrow;
+      }
+    }
 
     _audioSource = newSource;
+
+    // Restore shuffle state
+    if (wasShuffled) {
+      await _player.setShuffleModeEnabled(true);
+    }
 
     if (wasPlaying) {
       await _player.play();
     }
+  }
+
+  Uri _toPlayableUri(String urlOrPath, {bool isLocal = false}) {
+    if (isLocal) {
+      final file = File(urlOrPath);
+      return Uri.file(file.path);
+    }
+    // If it looks like a file path, prefer file URI
+    if (urlOrPath.startsWith('/') || urlOrPath.contains('\\')) {
+      return Uri.file(urlOrPath);
+    }
+    return Uri.parse(urlOrPath);
   }
 
   /// Dispose resources
@@ -921,5 +1200,46 @@ class AudioPlayerService extends ChangeNotifier {
     _streamingService.dispose();
     isPreparing.dispose();
     super.dispose();
+  }
+
+  /// Handle playback completion
+  Future<void> _handlePlaybackCompleted() async {
+    if (_playlist.isEmpty) {
+      await _player.stop();
+      notifyListeners();
+      return;
+    }
+
+    if (_loopMode == LoopMode.one) {
+      // Loop current track
+      await _player.seek(Duration.zero);
+      await _player.play();
+      return;
+    }
+
+    if (_loopMode == LoopMode.all) {
+      // Move to next according to current shuffle/order
+      await skipToNext();
+      return;
+    }
+
+    // No loop: if there is a next track, play it; otherwise stop
+    final hasNext = _currentIndex < _playlist.length - 1;
+    if (hasNext || _isShuffleEnabled) {
+      await skipToNext();
+    } else {
+      await _player.stop();
+      notifyListeners();
+    }
+  }
+
+  /// Clear media-related caches (images and expired stream URLs)
+  void clearCache() {
+    try {
+      _imageCacheService.clearCache();
+    } catch (_) {}
+    try {
+      _streamingService.clearExpiredCache();
+    } catch (_) {}
   }
 }

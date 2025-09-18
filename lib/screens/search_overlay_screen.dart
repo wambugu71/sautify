@@ -1,3 +1,11 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
@@ -8,7 +16,9 @@ import 'package:sautifyv2/providers/search_provider.dart';
 import 'package:sautifyv2/screens/player_screen.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
+import 'package:sautifyv2/services/settings_service.dart';
 import 'package:sautifyv2/widgets/mini_player.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 class SearchOverlayScreen extends StatefulWidget {
@@ -20,11 +30,81 @@ class SearchOverlayScreen extends StatefulWidget {
 
 class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
   final ValueNotifier<bool> _busy = ValueNotifier(false);
+  final ValueNotifier<String?> _loadingAlbumId = ValueNotifier<String?>(null);
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  Timer? _debounce;
+  static const _recentKey = 'recent_searches';
+  static const _recentMax = 10;
+  List<String> _recent = <String>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecent();
+  }
 
   @override
   void dispose() {
     _busy.dispose();
+    _loadingAlbumId.dispose();
+    _debounce?.cancel();
+    _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRecent() async {
+    try {
+      // Respect setting: if disabled, do not load or show recents
+      final settings = SettingsService();
+      if (settings.isReady && !settings.showRecentSearches) return;
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_recentKey) ?? <String>[];
+      setState(() {
+        _recent = list.take(_recentMax).toList();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistRecent() async {
+    try {
+      final settings = SettingsService();
+      if (settings.isReady && !settings.showRecentSearches) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_recentKey, _recent);
+    } catch (_) {}
+  }
+
+  Future<void> _addRecent(String q) async {
+    final settings = SettingsService();
+    if (settings.isReady && !settings.showRecentSearches) return;
+    final query = q.trim();
+    if (query.isEmpty) return;
+    // Move to front, keep unique (case-insensitive)
+    _recent.removeWhere((e) => e.toLowerCase() == query.toLowerCase());
+    _recent.insert(0, query);
+    if (_recent.length > _recentMax) {
+      _recent = _recent.take(_recentMax).toList();
+    }
+    setState(() {});
+    await _persistRecent();
+  }
+
+  Future<void> _removeRecent(String q) async {
+    final settings = SettingsService();
+    if (settings.isReady && !settings.showRecentSearches) return;
+    _recent.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
+    setState(() {});
+    await _persistRecent();
+  }
+
+  Future<void> _clearRecent() async {
+    final settings = SettingsService();
+    if (settings.isReady && !settings.showRecentSearches) return;
+    _recent.clear();
+    setState(() {});
+    await _persistRecent();
   }
 
   @override
@@ -36,40 +116,46 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
           final bottomInset = MediaQuery.of(context).viewInsets.bottom;
           final isKeyboardOpen = bottomInset > 0;
           final contentBottomPadding = isKeyboardOpen ? 16.0 : 100.0;
+          final settings = context.watch<SettingsService>();
+          // If suggestions are disabled, ensure they are cleared once
+          if (!settings.showSearchSuggestions) {
+            final p = Provider.of<SearchProvider>(context, listen: false);
+            if (p.suggestions.isNotEmpty) {
+              // Clear suggestions
+              p.fetchSuggestions('');
+            }
+          }
 
           return Scaffold(
-            backgroundColor: bgcolor.withOpacity(0.95),
+            backgroundColor: bgcolor,
             resizeToAvoidBottomInset: true,
             body: SafeArea(
               child: Stack(
                 children: [
-                  // Content with bottom padding for the mini player (reduced when keyboard is open)
-                  Positioned.fill(
-                    child: SafeArea(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: contentBottomPadding),
-                        child: Column(
-                          children: [
-                            _buildHeader(context),
-                            const SizedBox(height: 8),
-                            _buildSearchBar(context),
-                            const SizedBox(height: 8),
-                            // Suggestions (top 3) and Albums are hidden while typing to avoid overflow
-                            if (!isKeyboardOpen) _buildSuggestionsSection(),
-                            if (!isKeyboardOpen) const SizedBox(height: 8),
-                            if (!isKeyboardOpen) _buildAlbumsSection(),
-                            if (!isKeyboardOpen) const SizedBox(height: 8),
-                            Expanded(child: _buildResults()),
-                          ],
-                        ),
+                  // Base content (non-positioned so Stack gets proper size)
+                  SafeArea(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: contentBottomPadding),
+                      child: Column(
+                        children: [
+                          _buildHeader(context),
+                          const SizedBox(height: 8),
+                          _buildSearchBar(context),
+                          const SizedBox(height: 8),
+                          // Suggestions (top 3) and Albums are hidden while typing to avoid overflow
+                          if (!isKeyboardOpen && settings.showSearchSuggestions)
+                            _buildSuggestionsSection(),
+                          if (!isKeyboardOpen) const SizedBox(height: 8),
+                          if (!isKeyboardOpen) _buildAlbumsSection(),
+                          if (!isKeyboardOpen) const SizedBox(height: 8),
+                          Expanded(child: _buildResults()),
+                        ],
                       ),
                     ),
                   ),
                   // Mini Player overlay; lifted above the keyboard if open
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
+                  Align(
+                    alignment: Alignment.bottomCenter,
                     child: AnimatedPadding(
                       duration: const Duration(milliseconds: 150),
                       curve: Curves.easeOut,
@@ -77,6 +163,8 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                       child: const MiniPlayer(),
                     ),
                   ),
+                  // Loading overlay on top of everything (tracks & albums taps)
+                  _buildLoadingOverlay(),
                 ],
               ),
             ),
@@ -84,6 +172,11 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
         },
       ),
     );
+  }
+
+  Widget _buildLoadingOverlay() {
+    // Disabled global overlay; per-album tile overlay is used instead.
+    return const SizedBox.shrink();
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -118,42 +211,173 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Consumer<SearchProvider>(
         builder: (context, provider, _) {
-          return TextField(
-            onChanged: (v) {
-              provider.updateQuery(v);
-              provider.fetchSuggestions(v);
-            },
-            onSubmitted: (v) => provider.search(v),
-            style: TextStyle(color: txtcolor),
-            decoration: InputDecoration(
-              hintText: 'Search songs, artists, albums',
-              hintStyle: TextStyle(color: txtcolor.withOpacity(0.6)),
-              prefixIcon: Icon(Icons.search, color: iconcolor),
-              suffixIcon: provider.isLoading
-                  ? Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: appbarcolor,
-                        ),
-                      ),
-                    )
-                  : IconButton(
-                      onPressed: () => provider.search(),
-                      icon: Icon(Icons.arrow_forward, color: iconcolor),
-                    ),
-              filled: true,
-              fillColor: cardcolor,
-              border: OutlineInputBorder(
+          final settings = context.watch<SettingsService>();
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                color: Colors.transparent,
+                elevation: 3,
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: cardcolor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: appbarcolor, width: 1),
+                  ),
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    onChanged: (v) {
+                      if (settings.showSearchSuggestions) {
+                        provider.updateQuery(v);
+                        _debounce?.cancel();
+                        _debounce = Timer(
+                          const Duration(milliseconds: 300),
+                          () {
+                            provider.fetchSuggestions(v);
+                          },
+                        );
+                      } else {
+                        _debounce?.cancel();
+                      }
+                    },
+                    onSubmitted: (v) async {
+                      await _addRecent(v);
+                      provider.search(v);
+                    },
+                    style: TextStyle(color: txtcolor),
+                    decoration: InputDecoration(
+                      hintText: 'Search songs, artists, albums',
+                      hintStyle: TextStyle(color: txtcolor.withOpacity(0.7)),
+                      prefixIcon: Icon(Icons.search, color: iconcolor),
+                      suffixIcon: provider.isLoading
+                          ? Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: appbarcolor,
+                                ),
+                              ),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (provider.query.isNotEmpty)
+                                  IconButton(
+                                    tooltip: 'Clear',
+                                    icon: Icon(Icons.clear, color: iconcolor),
+                                    onPressed: () {
+                                      _controller.clear();
+                                      provider.updateQuery('');
+                                      provider.fetchSuggestions('');
+                                      _focusNode.requestFocus();
+                                    },
+                                  ),
+                                IconButton(
+                                  tooltip: 'Search',
+                                  onPressed: () async {
+                                    await _addRecent(provider.query);
+                                    provider.search();
+                                  },
+                                  icon: Icon(
+                                    Icons.arrow_forward,
+                                    color: iconcolor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: provider.isLoading
+                    ? Padding(
+                        key: const ValueKey('linear_loading'),
+                        padding: const EdgeInsets.only(top: 6),
+                        child: LinearProgressIndicator(
+                          minHeight: 2,
+                          color: appbarcolor,
+                          backgroundColor: cardcolor,
+                        ),
+                      )
+                    : const SizedBox(key: ValueKey('no_loading'), height: 8),
+              ),
+              if (settings.showRecentSearches) _buildRecentSection(provider),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRecentSection(SearchProvider provider) {
+    if (_recent.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                Text(
+                  'Recent searches',
+                  style: TextStyle(
+                    color: txtcolor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _recent.isEmpty ? null : _clearRecent,
+                  child: Text('Clear', style: TextStyle(color: appbarcolor)),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _recent.map((q) {
+                return GestureDetector(
+                  onLongPress: () => _removeRecent(q),
+                  child: ActionChip(
+                    backgroundColor: cardcolor,
+                    label: Text(q, style: TextStyle(color: txtcolor)),
+                    avatar: Icon(Icons.history, color: iconcolor, size: 18),
+                    onPressed: () async {
+                      _controller.text = q;
+                      _controller.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _controller.text.length),
+                      );
+                      provider.updateQuery(q);
+                      await _addRecent(q);
+                      provider.search(q);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -226,239 +450,273 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                   separatorBuilder: (_, __) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     final album = provider.albumResults[index];
-                    return ValueListenableBuilder<bool>(
-                      valueListenable: _busy,
-                      builder: (context, busy, __) {
-                        return GestureDetector(
-                          onTap: () async {
-                            if (busy || audioService.isPreparing.value) return;
-                            _busy.value = true;
-                            try {
-                              // Fetch tracks, replace queue and play
-                              final tracks = await provider.fetchAlbumTracks(
-                                album.albumId,
-                              );
-                              if (tracks.isEmpty) return;
+                    return ValueListenableBuilder<String?>(
+                      valueListenable: _loadingAlbumId,
+                      builder: (context, loadingId, __) {
+                        final isLoadingThis = loadingId == album.albumId;
+                        return AbsorbPointer(
+                          absorbing: isLoadingThis,
+                          child: GestureDetector(
+                            onTap: () async {
+                              if (_loadingAlbumId.value != null ||
+                                  audioService.isPreparing.value)
+                                return;
+                              _loadingAlbumId.value = album.albumId;
+                              try {
+                                final tracks = await provider.fetchAlbumTracks(
+                                  album.albumId,
+                                );
+                                if (tracks.isEmpty) return;
 
-                              await audioService.stop();
-                              await audioService.loadPlaylist(
-                                tracks,
-                                initialIndex: 0,
-                                autoPlay: true,
-                                sourceType: 'ALBUM',
-                                sourceName: album.title,
-                              );
+                                await audioService.stop();
+                                await audioService.loadPlaylist(
+                                  tracks,
+                                  initialIndex: 0,
+                                  autoPlay: true,
+                                  sourceType: 'ALBUM',
+                                  sourceName: album.title,
+                                );
 
-                              if (context.mounted) {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (context) => PlayerScreen(
-                                      title: tracks.first.title,
-                                      artist: tracks.first.artist,
-                                      imageUrl: tracks.first.thumbnailUrl,
-                                      duration: tracks.first.duration,
+                                if (context.mounted) {
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (context) => PlayerScreen(
+                                        title: tracks.first.title,
+                                        artist: tracks.first.artist,
+                                        imageUrl: tracks.first.thumbnailUrl,
+                                        duration: tracks.first.duration,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
+                              } finally {
+                                if (mounted) _loadingAlbumId.value = null;
                               }
-                            } finally {
-                              if (mounted) _busy.value = false;
-                            }
-                          },
-                          onLongPress: () async {
-                            // Toggle save/unsave album to Library on long press
-                            final lib = Provider.of<LibraryProvider>(
-                              context,
-                              listen: false,
-                            );
-                            final isSaved = lib.getAlbums().any(
-                              (a) => a.id == album.albumId,
-                            );
-                            if (isSaved) {
-                              await lib.deleteAlbum(album.albumId);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Album removed from Library'),
-                                  ),
-                                );
-                              }
-                            } else {
-                              final tracks = await provider.fetchAlbumTracks(
-                                album.albumId,
+                            },
+                            onLongPress: () async {
+                              final lib = Provider.of<LibraryProvider>(
+                                context,
+                                listen: false,
                               );
-                              if (tracks.isEmpty) return;
-                              final saved = SavedAlbum(
-                                id: album.albumId,
-                                title: album.title,
-                                artist: album.artist,
-                                artworkUrl: album.thumbnailUrl,
-                                tracks: tracks,
+                              final isSaved = lib.getAlbums().any(
+                                (a) => a.id == album.albumId,
                               );
-                              await lib.saveAlbum(saved);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Album saved to Library'),
-                                  ),
+                              if (isSaved) {
+                                await lib.deleteAlbum(album.albumId);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Album removed from Library',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                final tracks = await provider.fetchAlbumTracks(
+                                  album.albumId,
                                 );
+                                if (tracks.isEmpty) return;
+                                final saved = SavedAlbum(
+                                  id: album.albumId,
+                                  title: album.title,
+                                  artist: album.artist,
+                                  artworkUrl: album.thumbnailUrl,
+                                  tracks: tracks,
+                                );
+                                await lib.saveAlbum(saved);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Album saved to Library'),
+                                    ),
+                                  );
+                                }
                               }
-                            }
-                          },
-                          child: Container(
-                            width: 120,
-                            decoration: BoxDecoration(
-                              color: cardcolor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(12),
-                                    topRight: Radius.circular(12),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: AspectRatio(
-                                      aspectRatio: 1,
-                                      child: Stack(
-                                        children: [
-                                          album.thumbnailUrl != null
-                                              ? CachedNetworkImage(
-                                                  imageUrl: album.thumbnailUrl!,
-                                                  fit: BoxFit.cover,
-                                                  width: 104,
-                                                  height: 104,
-                                                )
-                                              : Container(
-                                                  color: bgcolor,
-                                                  child: Icon(
-                                                    Icons.album,
-                                                    color: iconcolor,
-                                                  ),
-                                                ),
-                                          Positioned(
-                                            top: 6,
-                                            right: 6,
-                                            child: Consumer<LibraryProvider>(
-                                              builder: (context, lib, __) {
-                                                final isSaved = lib
-                                                    .getAlbums()
-                                                    .any(
-                                                      (a) =>
-                                                          a.id == album.albumId,
-                                                    );
-                                                return InkWell(
-                                                  onTap: () async {
-                                                    if (isSaved) {
-                                                      await lib.deleteAlbum(
-                                                        album.albumId,
-                                                      );
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(
-                                                          context,
-                                                        ).showSnackBar(
-                                                          const SnackBar(
-                                                            content: Text(
-                                                              'Album removed from Library',
-                                                            ),
-                                                          ),
-                                                        );
-                                                      }
-                                                    } else {
-                                                      final tracks =
-                                                          await provider
-                                                              .fetchAlbumTracks(
-                                                                album.albumId,
-                                                              );
-                                                      if (tracks.isEmpty)
-                                                        return;
-                                                      final saved = SavedAlbum(
-                                                        id: album.albumId,
-                                                        title: album.title,
-                                                        artist: album.artist,
-                                                        artworkUrl:
-                                                            album.thumbnailUrl,
-                                                        tracks: tracks,
-                                                      );
-                                                      await lib.saveAlbum(
-                                                        saved,
-                                                      );
-                                                      if (context.mounted) {
-                                                        ScaffoldMessenger.of(
-                                                          context,
-                                                        ).showSnackBar(
-                                                          const SnackBar(
-                                                            content: Text(
-                                                              'Album saved to Library',
-                                                            ),
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  },
-                                                  borderRadius:
-                                                      BorderRadius.circular(16),
-                                                  child: Container(
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          color: Colors.black26,
-                                                          shape:
-                                                              BoxShape.circle,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.all(4),
+                            },
+                            child: Container(
+                              width: 120,
+                              decoration: BoxDecoration(
+                                color: cardcolor,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(12),
+                                      topRight: Radius.circular(12),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: AspectRatio(
+                                        aspectRatio: 1,
+                                        child: Stack(
+                                          children: [
+                                            album.thumbnailUrl != null
+                                                ? CachedNetworkImage(
+                                                    imageUrl:
+                                                        album.thumbnailUrl!,
+                                                    fit: BoxFit.cover,
+                                                    width: 104,
+                                                    height: 104,
+                                                  )
+                                                : Container(
+                                                    color: bgcolor,
                                                     child: Icon(
-                                                      isSaved
-                                                          ? Icons.favorite
-                                                          : Icons
-                                                                .favorite_border,
-                                                      color: isSaved
-                                                          ? Colors.red
-                                                          : Colors.white,
-                                                      size: 18,
+                                                      Icons.album,
+                                                      color: iconcolor,
                                                     ),
                                                   ),
-                                                );
-                                              },
+                                            Positioned(
+                                              top: 6,
+                                              right: 6,
+                                              child: Consumer<LibraryProvider>(
+                                                builder: (context, lib, __) {
+                                                  final isSaved = lib
+                                                      .getAlbums()
+                                                      .any(
+                                                        (a) =>
+                                                            a.id ==
+                                                            album.albumId,
+                                                      );
+                                                  return InkWell(
+                                                    onTap: () async {
+                                                      if (isSaved) {
+                                                        await lib.deleteAlbum(
+                                                          album.albumId,
+                                                        );
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                'Album removed from Library',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      } else {
+                                                        final tracks =
+                                                            await provider
+                                                                .fetchAlbumTracks(
+                                                                  album.albumId,
+                                                                );
+                                                        if (tracks.isEmpty)
+                                                          return;
+                                                        final saved =
+                                                            SavedAlbum(
+                                                              id: album.albumId,
+                                                              title:
+                                                                  album.title,
+                                                              artist:
+                                                                  album.artist,
+                                                              artworkUrl: album
+                                                                  .thumbnailUrl,
+                                                              tracks: tracks,
+                                                            );
+                                                        await lib.saveAlbum(
+                                                          saved,
+                                                        );
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                'Album saved to Library',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          16,
+                                                        ),
+                                                    child: Container(
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            color:
+                                                                Colors.black26,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            4,
+                                                          ),
+                                                      child: Icon(
+                                                        isSaved
+                                                            ? Icons.favorite
+                                                            : Icons
+                                                                  .favorite_border,
+                                                        color: isSaved
+                                                            ? Colors.red
+                                                            : Colors.white,
+                                                        size: 18,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                            if (isLoadingThis)
+                                              Container(
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                color: Colors.black38,
+                                                alignment: Alignment.center,
+                                                child: SizedBox(
+                                                  width: 28,
+                                                  height: 28,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 3,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(appbarcolor),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        album.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: txtcolor,
-                                          fontWeight: FontWeight.w600,
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          album.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: txtcolor,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        album.artist,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: txtcolor.withOpacity(0.7),
-                                          fontSize: 12,
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          album.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: txtcolor.withOpacity(0.7),
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -610,38 +868,46 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
         onTap: () async {
           if (_busy.value || audioService.isPreparing.value) return;
           _busy.value = true;
-          try {
-            // Replace current queue
-            final mutablePlaylist = List<StreamingData>.from(list);
-            await audioService.stop();
-            await audioService.loadPlaylist(
-              mutablePlaylist,
-              initialIndex: index,
-              autoPlay: true,
-              sourceType: 'SEARCH',
-              sourceName: Provider.of<SearchProvider>(
-                context,
-                listen: false,
-              ).query,
-            );
 
-            // Open player screen by replacing the search overlay
-            if (context.mounted) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => PlayerScreen(
-                    title: track.title,
-                    artist: track.artist,
-                    imageUrl: track.thumbnailUrl,
-                    duration: track.duration,
-                    // Do not pass playlist/videoId to avoid reloading
-                  ),
-                ),
+          final mutablePlaylist = List<StreamingData>.from(list);
+          Future.microtask(() async {
+            try {
+              await audioService.stop();
+              await audioService.loadPlaylist(
+                mutablePlaylist,
+                initialIndex: index,
+                autoPlay: true,
+                sourceType: 'SEARCH',
+                sourceName: Provider.of<SearchProvider>(
+                  context,
+                  listen: false,
+                ).query,
               );
+            } catch (e) {
+              debugPrint('Background load failed: $e');
             }
-          } finally {
-            if (mounted) _busy.value = false;
+          });
+
+          if (track.thumbnailUrl != null && track.thumbnailUrl!.isNotEmpty) {
+            try {
+              await ImageCacheService().preloadImage(track.thumbnailUrl!);
+            } catch (_) {}
           }
+
+          if (context.mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => PlayerScreen(
+                  title: track.title,
+                  artist: track.artist,
+                  imageUrl: track.thumbnailUrl,
+                  duration: track.duration,
+                ),
+              ),
+            );
+          }
+
+          if (mounted) _busy.value = false;
         },
       ),
     );

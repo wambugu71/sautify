@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:dart_ytmusic_api/yt_music.dart';
 import 'package:sautifyv2/models/home/home.dart';
 import 'package:sautifyv2/services/home_service.dart';

@@ -5,7 +5,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- Required when targeting Android 13+ to show notifications -->
+    <uses-permission android:name="android.permission.SEND_NOTIFICATION" />
+    <uses-permission android:name="android.permission.RECEIVE_NOTIFICATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application android:label="sautify" android:name="${applicationName}" android:icon="@mipmap/ic_launcher">

@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:flutter/material.dart';
 import 'package:sautifyv2/playlist_extract.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';

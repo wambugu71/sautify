@@ -1,7 +1,7 @@
 name: sautifyv2
 description: "A new Flutter project."
 
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 version: 1.0.0+1
 
@@ -11,21 +11,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
- 
   cupertino_icons: ^1.0.8
   just_audio_background: ^0.0.1-beta.17
   just_audio: ^0.10.5
   provider: ^6.1.5+1
   shared_preferences: ^2.5.3
   http: ^1.5.0
+  dio: ^5.6.0
+  dio_smart_retry: ^6.0.0
   audio_service: ^0.18.18
   audio_session: ^0.2.2
   dart_ytmusic_api: ^1.2.1
   skeletonizer: ^2.1.0+1
-  retry: ^3.1.2
   flutter_audio_output: ^0.0.4
- # logger: ^2.6.1
+  # logger: ^2.6.1
   youtube_explode_dart: ^2.5.2
   permission_handler: ^11.3.1
   hive: ^2.2.3
@@ -34,17 +36,24 @@ dependencies:
   #just_audio_media_kit: ^2.1.0
   #just_audio_windows: ^0.2.2
   #just_audio_libwinmedia: ^0.0.4+1
+  palette_generator: ^0.3.3
+  toastification: ^2.2.1
+  connectivity_plus: ^6.0.5
+  path_provider: ^2.1.5
+
+dependency_overrides:
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
- 
+
   flutter_lints: ^5.0.0
-  icons_launcher : any
+  icons_launcher: any
 
 flutter:
-
   uses-material-design: true
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -52,10 +61,10 @@ flutter:
   #   - images/a_dot_ham.jpeg
 
   fonts:
-     - family: asimovian
-       fonts:
-         - asset: fonts/Asimovian-Regular.ttf
-           
+    - family: asimovian
+      fonts:
+        - asset: fonts/Asimovian-Regular.ttf
+
   #   - family: Trajan Pro
   #     fonts:
   #       - asset: fonts/TrajanPro.ttf
@@ -85,7 +94,7 @@ flutter_native_splash:
   # of your splash screen to a solid color.  Use background_image to set the background of your
   # splash screen to a png image.  This is useful for gradients. The image will be stretch to the
   # size of the app. Only one parameter can be used, color and background_image cannot both be set.
-  color: "#101011"
+  color: "#2d2f34"
   #color: "#42a5f5"
   #background_image: "assets/icons/icon.png"
 
@@ -104,7 +113,7 @@ flutter_native_splash:
   # To position the branding image at the bottom of the screen you can use bottom, bottomRight,
   # and bottomLeft. The default values is bottom if not specified or specified something else.
   #branding_mode: bottom
-  
+
   # Set the branding padding from the bottom of the screen.  The default value is 0
   # (Not supported on web yet)
   # branding_bottom_padding: 24
@@ -112,7 +121,7 @@ flutter_native_splash:
   # The color_dark, background_image_dark, image_dark, branding_dark are parameters that set the background
   # and image when the device is in dark mode. If they are not specified, the app will use the
   # parameters from above.  If there is no parameter above, the app will use the light mode values.
-  # If the image_dark parameter is specified, color_dark or background_image_dark must be specified.  
+  # If the image_dark parameter is specified, color_dark or background_image_dark must be specified.
   # color_dark and background_image_dark cannot both be set.
   #color_dark: "#042a49"
   #background_image_dark: "assets/dark-background.png"
@@ -129,7 +138,7 @@ flutter_native_splash:
     # App icon with an icon background: This should be 960×960 pixels, and fit within a circle
     # 640 pixels in diameter.
     # App icon without an icon background: This should be 1152×1152 pixels, and fit within a circle
-    # 768 pixels in diameter.  To fit a 1152x1152 image within a circle with a 768 diameter, simply 
+    # 768 pixels in diameter.  To fit a 1152x1152 image within a circle with a 768 diameter, simply
     # ensure that the most important design elements of your image are placed within a circular area
     # with a 768 diameter at the center of the 1152x1152 canvas.
     #image: assets/android12splash.png
@@ -191,7 +200,7 @@ flutter_native_splash:
   # android_gravity can be one of the following Android Gravity (see
   # https://developer.android.com/reference/android/view/Gravity): bottom, center,
   # center_horizontal, center_vertical, clip_horizontal, clip_vertical, end, fill, fill_horizontal,
-  # fill_vertical, left, right, start, or top. android_gravity can be combined using the | operator to achieve multiple effects. 
+  # fill_vertical, left, right, start, or top. android_gravity can be combined using the | operator to achieve multiple effects.
   # For example:
   # `android_gravity: fill|clip_vertical` - This will fill the width while maintaining the image's vertical aspect ratio
   #android_gravity: center

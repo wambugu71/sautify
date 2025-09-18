@@ -1,4 +1,11 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService extends ChangeNotifier {
@@ -7,6 +14,7 @@ class SettingsService extends ChangeNotifier {
   SettingsService._internal();
 
   late SharedPreferences _prefs;
+  Box<dynamic>? _box; // Hive box for select settings (e.g., locale)
   bool _ready = false;
 
   // Keys
@@ -20,6 +28,10 @@ class SettingsService extends ChangeNotifier {
   // New keys
   static const _kDefaultVolume = 'default_volume'; // 0.0 - 1.0
   static const _kPreferredQuality = 'preferred_quality'; // low | medium | high
+  static const _kLocaleCode = 'locale_code'; // e.g., en, sw, sw-KE
+  // Search-related keys (Hive-backed)
+  static const _kShowRecentSearches = 'show_recent_searches';
+  static const _kShowSearchSuggestions = 'show_search_suggestions';
 
   // Defaults
   bool duckOnInterruption = true;
@@ -32,11 +44,16 @@ class SettingsService extends ChangeNotifier {
   // New defaults
   double defaultVolume = 1.0; // 0.0 - 1.0
   String preferredQuality = 'medium'; // low | medium | high
+  String localeCode = 'en'; // default English
+  // Search-related defaults (OFF as requested)
+  bool showRecentSearches = false;
+  bool showSearchSuggestions = false;
 
   bool get isReady => _ready;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    _box = await Hive.openBox('app_prefs');
     duckOnInterruption =
         _prefs.getBool(_kDuckOnInterruption) ?? duckOnInterruption;
     duckVolume = _prefs.getDouble(_kDuckVolume) ?? duckVolume;
@@ -50,6 +67,14 @@ class SettingsService extends ChangeNotifier {
     // New loads
     defaultVolume = _prefs.getDouble(_kDefaultVolume) ?? defaultVolume;
     preferredQuality = _prefs.getString(_kPreferredQuality) ?? preferredQuality;
+    // Prefer Hive for locale (requested), fallback to SharedPreferences
+    final hiveLocale = _box?.get(_kLocaleCode) as String?;
+    localeCode = hiveLocale ?? _prefs.getString(_kLocaleCode) ?? localeCode;
+    // Load search-related flags from Hive only (source of truth)
+    showRecentSearches =
+        (_box?.get(_kShowRecentSearches) as bool?) ?? showRecentSearches;
+    showSearchSuggestions =
+        (_box?.get(_kShowSearchSuggestions) as bool?) ?? showSearchSuggestions;
     _ready = true;
     notifyListeners();
   }
@@ -111,6 +136,27 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setLocaleCode(String code) async {
+    localeCode = code;
+    // Write to Hive as source-of-truth, keep SharedPreferences for compatibility
+    await _box?.put(_kLocaleCode, localeCode);
+    await _prefs.setString(_kLocaleCode, localeCode);
+    notifyListeners();
+  }
+
+  // Search-related setters (Hive-backed)
+  Future<void> setShowRecentSearches(bool value) async {
+    showRecentSearches = value;
+    await _box?.put(_kShowRecentSearches, showRecentSearches);
+    notifyListeners();
+  }
+
+  Future<void> setShowSearchSuggestions(bool value) async {
+    showSearchSuggestions = value;
+    await _box?.put(_kShowSearchSuggestions, showSearchSuggestions);
+    notifyListeners();
+  }
+
   Future<void> resetToDefaults() async {
     duckOnInterruption = true;
     duckVolume = 0.5;
@@ -121,6 +167,9 @@ class SettingsService extends ChangeNotifier {
     defaultLoopMode = 'off';
     defaultVolume = 1.0;
     preferredQuality = 'medium';
+    localeCode = 'en';
+    showRecentSearches = false;
+    showSearchSuggestions = false;
 
     await _prefs.setBool(_kDuckOnInterruption, duckOnInterruption);
     await _prefs.setDouble(_kDuckVolume, duckVolume);
@@ -131,6 +180,10 @@ class SettingsService extends ChangeNotifier {
     await _prefs.setString(_kDefaultLoopMode, defaultLoopMode);
     await _prefs.setDouble(_kDefaultVolume, defaultVolume);
     await _prefs.setString(_kPreferredQuality, preferredQuality);
+    await _box?.put(_kLocaleCode, localeCode);
+    await _box?.put(_kShowRecentSearches, showRecentSearches);
+    await _box?.put(_kShowSearchSuggestions, showSearchSuggestions);
+    await _prefs.setString(_kLocaleCode, localeCode);
 
     notifyListeners();
   }

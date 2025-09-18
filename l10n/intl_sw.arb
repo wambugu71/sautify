@@ -1,0 +1,14 @@
+{
+  "@@locale": "sw",
+  "appTitle": "Sautify",
+  "homeTitle": "Nyumbani",
+  "libraryTitle": "Maktaba",
+  "settingsTitle": "Mipangilio",
+  "searchHint": "Tafuta nyimbo, wasanii, albamu",
+  "nowPlaying": "Inachezwa sasa",
+  "songsCount": "{count, plural, one {# wimbo} other {# nyimbo}}",
+  "downloaded": "Imepakuliwa",
+  "offline": "Nje ya mtandao",
+  "error": "Hitilafu",
+  "retry": "Jaribu tena"
+}

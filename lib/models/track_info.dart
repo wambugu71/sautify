@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:sautifyv2/models/streaming_model.dart';
 
 /// Comprehensive track information model that combines all track details

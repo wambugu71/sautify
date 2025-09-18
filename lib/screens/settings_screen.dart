@@ -1,9 +1,18 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
+import 'package:sautifyv2/l10n/strings.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/settings_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -78,15 +87,66 @@ class SettingsScreen extends StatelessWidget {
                 top: 12,
               ),
               children: [
-                _sectionHeader('Playback'),
+                _sectionHeader(AppStrings.playback(settings.localeCode)),
                 _sectionCard([
+                  ListTile(
+                    leading: Icon(Icons.language, color: appbarcolor),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            AppStrings.language(settings.localeCode),
+                            style: TextStyle(color: txtcolor),
+                          ),
+                        ),
+                        DropdownButton<String>(
+                          value: settings.localeCode.split('-').first,
+                          dropdownColor: cardcolor,
+                          style: TextStyle(color: txtcolor),
+                          items: [
+                            DropdownMenuItem(
+                              value: 'en',
+                              child: Text(
+                                AppStrings.english(settings.localeCode),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'sw',
+                              child: Text(
+                                AppStrings.kiswahili(settings.localeCode),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'am',
+                              child: Text(
+                                AppStrings.amharic(settings.localeCode),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) async {
+                            if (v == null) return;
+                            await settings.setLocaleCode(v);
+                          },
+                        ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      settings.localeCode.startsWith('sw')
+                          ? AppStrings.kiswahili(settings.localeCode)
+                          : settings.localeCode.startsWith('am')
+                          ? AppStrings.amharic(settings.localeCode)
+                          : AppStrings.english(settings.localeCode),
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                  ),
+                  _tileDivider(),
                   SwitchListTile(
                     title: Text(
-                      'Shuffle on start',
+                      AppStrings.shuffleOnStart(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Text(
-                      'Enable shuffle by default',
+                      AppStrings.enableShuffleByDefault(settings.localeCode),
                       style: TextStyle(color: txtcolor.withAlpha(160)),
                     ),
                     value: settings.defaultShuffle,
@@ -102,7 +162,7 @@ class SettingsScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            'Loop mode',
+                            AppStrings.loopMode(settings.localeCode),
                             style: TextStyle(color: txtcolor),
                           ),
                         ),
@@ -110,15 +170,22 @@ class SettingsScreen extends StatelessWidget {
                           value: settings.defaultLoopMode,
                           dropdownColor: cardcolor,
                           style: TextStyle(color: txtcolor),
-                          items: const [
-                            DropdownMenuItem(value: 'off', child: Text('Off')),
+                          items: [
+                            DropdownMenuItem(
+                              value: 'off',
+                              child: Text(AppStrings.off(settings.localeCode)),
+                            ),
                             DropdownMenuItem(
                               value: 'one',
-                              child: Text('Repeat one'),
+                              child: Text(
+                                AppStrings.repeatOne(settings.localeCode),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'all',
-                              child: Text('Repeat all'),
+                              child: Text(
+                                AppStrings.repeatAll(settings.localeCode),
+                              ),
                             ),
                           ],
                           onChanged: (v) async {
@@ -147,7 +214,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.speed, color: appbarcolor),
                     title: Text(
-                      'Playback speed',
+                      AppStrings.playbackSpeed(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Column(
@@ -177,7 +244,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.volume_up, color: appbarcolor),
                     title: Text(
-                      'Default volume',
+                      AppStrings.defaultVolume(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Column(
@@ -208,7 +275,9 @@ class SettingsScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            'Preferred audio quality',
+                            AppStrings.preferredAudioQuality(
+                              settings.localeCode,
+                            ),
                             style: TextStyle(color: txtcolor),
                           ),
                         ),
@@ -216,27 +285,35 @@ class SettingsScreen extends StatelessWidget {
                           value: settings.preferredQuality,
                           dropdownColor: cardcolor,
                           style: TextStyle(color: txtcolor),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: 'low',
-                              child: Text('Low (64-128 kbps)'),
+                              child: Text(
+                                AppStrings.lowQuality(settings.localeCode),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'medium',
-                              child: Text('Medium (128-192 kbps)'),
+                              child: Text(
+                                AppStrings.mediumQuality(settings.localeCode),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'high',
-                              child: Text('High (256-320 kbps)'),
+                              child: Text(
+                                AppStrings.highQuality(settings.localeCode),
+                              ),
                             ),
                           ],
                           onChanged: (v) async {
                             if (v == null) return;
                             await settings.setPreferredQuality(v);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                  'Quality will apply to new tracks',
+                                  AppStrings.willApplyToNewTracks(
+                                    settings.localeCode,
+                                  ),
                                 ),
                               ),
                             );
@@ -253,7 +330,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.waves_outlined, color: appbarcolor),
                     title: Text(
-                      'Crossfade (coming soon)',
+                      AppStrings.crossfadeComingSoon(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Column(
@@ -278,15 +355,72 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ]),
 
-                _sectionHeader('Audio Focus & Interruptions'),
+                // Search section
+                _sectionHeader('Search'),
                 _sectionCard([
                   SwitchListTile(
                     title: Text(
-                      'Duck on interruption',
+                      'Show recent searches',
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Text(
-                      'Lower volume on transient interruptions',
+                      'Display your last queries as chips on the search screen',
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                    value: settings.showRecentSearches,
+                    onChanged: (v) async {
+                      await settings.setShowRecentSearches(v);
+                    },
+                  ),
+                  _tileDivider(),
+                  SwitchListTile(
+                    title: Text(
+                      'Show search suggestions',
+                      style: TextStyle(color: txtcolor),
+                    ),
+                    subtitle: Text(
+                      'Fetch and show suggestions while typing in search',
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                    value: settings.showSearchSuggestions,
+                    onChanged: (v) async {
+                      await settings.setShowSearchSuggestions(v);
+                      // UI will react in SearchOverlay; nothing else to do here
+                    },
+                  ),
+                  _tileDivider(),
+                  ListTile(
+                    leading: Icon(Icons.history, color: appbarcolor),
+                    title: Text(
+                      'Clear recent searches',
+                      style: TextStyle(color: txtcolor),
+                    ),
+                    subtitle: Text(
+                      'Remove all stored search queries',
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                    onTap: () async {
+                      // Clear the SharedPreferences key used by SearchOverlay
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('recent_searches');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Recent searches cleared')),
+                        );
+                      }
+                    },
+                  ),
+                ]),
+
+                _sectionHeader(AppStrings.audioFocus(settings.localeCode)),
+                _sectionCard([
+                  SwitchListTile(
+                    title: Text(
+                      AppStrings.duckOnInterruption(settings.localeCode),
+                      style: TextStyle(color: txtcolor),
+                    ),
+                    subtitle: Text(
+                      AppStrings.lowerVolumeOnInterruption(settings.localeCode),
                       style: TextStyle(color: txtcolor.withAlpha(160)),
                     ),
                     value: settings.duckOnInterruption,
@@ -298,7 +432,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.volume_down_alt, color: appbarcolor),
                     title: Text(
-                      'Duck volume',
+                      AppStrings.duckVolume(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Column(
@@ -326,7 +460,7 @@ class SettingsScreen extends StatelessWidget {
                   _tileDivider(),
                   SwitchListTile(
                     title: Text(
-                      'Auto-resume after interruption',
+                      AppStrings.autoResume(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     value: settings.autoResumeAfterInterruption,
@@ -336,7 +470,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ]),
 
-                _sectionHeader('Maintenance'),
+                _sectionHeader(AppStrings.maintenance(settings.localeCode)),
                 _sectionCard([
                   ListTile(
                     leading: Icon(
@@ -344,18 +478,26 @@ class SettingsScreen extends StatelessWidget {
                       color: appbarcolor,
                     ),
                     title: Text(
-                      'Clear stream/image cache',
+                      AppStrings.clearStreamImageCache(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Text(
-                      'Fixes bad URLs and frees memory',
+                      AppStrings.fixesBadUrlsAndFreesMemory(
+                        settings.localeCode,
+                      ),
                       style: TextStyle(color: txtcolor.withAlpha(160)),
                     ),
-                    trailing: _primaryChip('Clear'),
+                    trailing: _primaryChip(
+                      AppStrings.clear(settings.localeCode),
+                    ),
                     onTap: () {
                       AudioPlayerService().clearCache();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Cache cleared')),
+                        SnackBar(
+                          content: Text(
+                            AppStrings.cacheCleared(settings.localeCode),
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -363,27 +505,29 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.refresh_outlined, color: appbarcolor),
                     title: Text(
-                      'Reset all settings',
+                      AppStrings.resetAllSettings(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
-                    trailing: _primaryChip('Reset'),
+                    trailing: _primaryChip(
+                      AppStrings.reset(settings.localeCode),
+                    ),
                     onTap: () async {
                       final ok = await showDialog<bool>(
                         context: context,
                         builder: (_) => AlertDialog(
                           backgroundColor: cardcolor,
                           title: Text(
-                            'Reset settings?',
+                            AppStrings.resetSettingsQ(settings.localeCode),
                             style: TextStyle(color: txtcolor),
                           ),
                           content: Text(
-                            'This will restore default playback and audio focus settings.',
+                            AppStrings.resetSettingsDesc(settings.localeCode),
                             style: TextStyle(color: txtcolor.withAlpha(180)),
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
+                              child: Text(AppStrings.off(settings.localeCode)),
                             ),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
@@ -391,7 +535,9 @@ class SettingsScreen extends StatelessWidget {
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Reset'),
+                              child: Text(
+                                AppStrings.reset(settings.localeCode),
+                              ),
                             ),
                           ],
                         ),
@@ -418,31 +564,45 @@ class SettingsScreen extends StatelessWidget {
                             await audio.setLoopMode(LoopMode.off);
                         }
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Settings reset')),
+                          SnackBar(
+                            content: Text(
+                              AppStrings.settingsReset(settings.localeCode),
+                            ),
+                          ),
                         );
                       }
                     },
                   ),
                 ]),
 
-                _sectionHeader('About'),
+                _sectionHeader(AppStrings.about(settings.localeCode)),
                 _sectionCard([
                   ListTile(
                     leading: Icon(Icons.info_outline, color: appbarcolor),
-                    title: Text('App info', style: TextStyle(color: txtcolor)),
+                    title: Text(
+                      AppStrings.appInfo(settings.localeCode),
+                      style: TextStyle(color: txtcolor),
+                    ),
                     subtitle: Text(
-                      'Sautify v1.0.0',
+                      'Sautify v0.0.2',
                       style: TextStyle(color: txtcolor.withAlpha(160)),
                     ),
                     onTap: () {
                       showAboutDialog(
                         context: context,
-                        applicationName: 'Sautify',
-                        applicationVersion: '1.0.0',
+                        applicationName: AppStrings.appTitle(
+                          settings.localeCode,
+                        ),
+                        applicationVersion: '0.0.2',
                         applicationIcon: const Icon(Icons.library_music),
+                        barrierColor: bgcolor.withAlpha(200),
                         children: const [
                           Text(
-                            'A modern music streaming player built with Flutter.',
+                            'A modern music streaming player backed  by youtube music client and online sources.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'roboto',
+                            ),
                           ),
                         ],
                       );
@@ -455,11 +615,13 @@ class SettingsScreen extends StatelessWidget {
                       color: appbarcolor,
                     ),
                     title: Text(
-                      'Privacy & permissions',
+                      AppStrings.privacyAndPermissions(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     subtitle: Text(
-                      'Notifications, storage, network',
+                      AppStrings.notificationsStorageNetwork(
+                        settings.localeCode,
+                      ),
                       style: TextStyle(color: txtcolor.withAlpha(160)),
                     ),
                     onTap: () {},
@@ -468,14 +630,60 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: Icon(Icons.article_outlined, color: appbarcolor),
                     title: Text(
-                      'Open source licenses',
+                      AppStrings.openSourceLicenses(settings.localeCode),
                       style: TextStyle(color: txtcolor),
                     ),
                     onTap: () {
                       showLicensePage(
                         context: context,
-                        applicationName: 'Sautify',
-                        applicationVersion: '1.0.0',
+                        applicationName: AppStrings.appTitle(
+                          settings.localeCode,
+                        ),
+                        applicationVersion: '0.0.2',
+                      );
+                    },
+                  ),
+                ]),
+
+                _sectionHeader(
+                  AppStrings.developerSection(settings.localeCode),
+                ),
+                _sectionCard([
+                  ListTile(
+                    leading: Icon(Icons.person_outline, color: appbarcolor),
+                    title: Text(
+                      AppStrings.developedBy(settings.localeCode),
+                      style: TextStyle(color: txtcolor),
+                    ),
+                    subtitle: Text(
+                      'Wambugu Kinyua',
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                  ),
+                  _tileDivider(),
+                  ListTile(
+                    leading: Icon(Icons.email_outlined, color: appbarcolor),
+                    title: Text(
+                      AppStrings.contactDeveloper(settings.localeCode),
+                      style: TextStyle(color: txtcolor),
+                    ),
+                    subtitle: Text(
+                      'wambugukinyua125@gmail.com',
+                      style: TextStyle(color: txtcolor.withAlpha(160)),
+                    ),
+                    trailing: _primaryChip(
+                      AppStrings.copy(settings.localeCode),
+                    ),
+                    onTap: () async {
+                      await Clipboard.setData(
+                        const ClipboardData(text: 'wambugukinyua125@gmail.com'),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            AppStrings.copiedToClipboard(settings.localeCode),
+                          ),
+                        ),
                       );
                     },
                   ),

@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
@@ -72,178 +78,196 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   ),
                 );
               },
-              child: Container(
-                height: 80,
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: bgcolor, // Use player background color
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(100),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // Progress bar - now uses the synchronized progress from trackInfo
-                    Container(
-                      height: 3,
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: iconcolor.withAlpha(50),
-                        valueColor: AlwaysStoppedAnimation<Color>(appbarcolor),
+              child: Card(
+                color: bgcolor.withAlpha(155),
+                elevation: 11,
+                child: Container(
+                  height: 80,
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: bgcolor, // Use player background color
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(100),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Progress bar - now uses the synchronized progress from trackInfo
+                      Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: iconcolor.withAlpha(50),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            appbarcolor,
+                          ),
+                        ),
+                      ),
 
-                    // Main content
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Row(
-                          children: [
-                            // Album art with caching
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                color: cardcolor,
-                              ),
-                              child: currentTrack.thumbnailUrl != null
-                                  ? CachedNetworkImage(
-                                      imageUrl: currentTrack.thumbnailUrl!,
-                                      borderRadius: BorderRadius.circular(8),
-                                      fit: BoxFit.cover,
-                                      width: 48,
-                                      height: 48,
-                                      errorWidget: Icon(
+                      // Main content
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            children: [
+                              // Album art with caching
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: cardcolor,
+                                ),
+                                child: currentTrack.thumbnailUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: currentTrack.thumbnailUrl!,
+                                        borderRadius: BorderRadius.circular(8),
+                                        fit: BoxFit.cover,
+                                        width: 48,
+                                        height: 48,
+                                        errorWidget: Icon(
+                                          Icons.music_note,
+                                          color: iconcolor.withAlpha(180),
+                                          size: 24,
+                                        ),
+                                      )
+                                    : Icon(
                                         Icons.music_note,
                                         color: iconcolor.withAlpha(180),
                                         size: 24,
                                       ),
-                                    )
-                                  : Icon(
-                                      Icons.music_note,
-                                      color: iconcolor.withAlpha(180),
-                                      size: 24,
-                                    ),
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            // Song info
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    currentTrack.title,
-                                    style: TextStyle(
-                                      color: txtcolor,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    currentTrack.artist,
-                                    style: TextStyle(
-                                      color: txtcolor.withAlpha(180),
-                                      fontSize: 12,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
                               ),
-                            ),
 
-                            // Previous button
-                            IconButton(
-                              onPressed: () async {
-                                await audioService.skipToPrevious();
-                              },
-                              icon: Icon(
-                                Icons.skip_previous,
-                                color: txtcolor,
-                                size: 24,
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            ),
+                              const SizedBox(width: 12),
 
-                            // Play/Pause button with loading state
-                            StreamBuilder<PlayerState>(
-                              stream: audioService.playerStateStream,
-                              builder: (context, snapshot) {
-                                final state = snapshot.data;
-                                final isLoading =
-                                    state?.processingState ==
-                                        ProcessingState.loading ||
-                                    state?.processingState ==
-                                        ProcessingState.buffering;
-                                final isPlaying =
-                                    trackInfoSnapshot.data?.isPlaying ?? false;
-
-                                if (isLoading) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4.0,
-                                    ),
-                                    child: SizedBox(
-                                      width: 28,
-                                      height: 28,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              txtcolor,
-                                            ),
+                              // Song info
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      currentTrack.title,
+                                      style: TextStyle(
+                                        color: txtcolor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  );
-                                }
-
-                                return IconButton(
-                                  onPressed: () async {
-                                    if (isPlaying) {
-                                      await audioService.pause();
-                                    } else {
-                                      await audioService.play();
-                                    }
-                                  },
-                                  icon: Icon(
-                                    isPlaying ? Icons.pause : Icons.play_arrow,
-                                    color: txtcolor,
-                                    size: 28,
-                                  ),
-                                );
-                              },
-                            ),
-
-                            // Next button
-                            IconButton(
-                              onPressed: () async {
-                                await audioService.skipToNext();
-                              },
-                              icon: Icon(
-                                Icons.skip_next,
-                                color: txtcolor,
-                                size: 24,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      currentTrack.artist,
+                                      style: TextStyle(
+                                        color: txtcolor.withAlpha(180),
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
+
+                              // Previous button
+                              IconButton(
+                                onPressed: () async {
+                                  await audioService.skipToPrevious();
+                                },
+                                icon: Icon(
+                                  Icons.skip_previous,
+                                  color: txtcolor,
+                                  size: 24,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+
+                              // Play/Pause button with loading state (only when NOT playing AND preparing/loading)
+                              ValueListenableBuilder<bool>(
+                                valueListenable: audioService.isPreparing,
+                                builder: (context, preparing, _) {
+                                  return StreamBuilder<PlayerState>(
+                                    stream: audioService.playerStateStream,
+                                    builder: (context, snapshot) {
+                                      final state = snapshot.data;
+                                      final effectivePlaying =
+                                          state?.playing ??
+                                          (trackInfoSnapshot.data?.isPlaying ??
+                                              false);
+                                      final engineLoading =
+                                          state?.processingState ==
+                                              ProcessingState.loading ||
+                                          state?.processingState ==
+                                              ProcessingState.buffering;
+                                      final isLoading =
+                                          (!effectivePlaying) &&
+                                          (preparing || engineLoading);
+
+                                      if (isLoading) {
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4.0,
+                                          ),
+                                          child: SizedBox(
+                                            width: 28,
+                                            height: 28,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    txtcolor,
+                                                  ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      return IconButton(
+                                        onPressed: () async {
+                                          if (effectivePlaying) {
+                                            await audioService.pause();
+                                          } else {
+                                            await audioService.play();
+                                          }
+                                        },
+                                        icon: Icon(
+                                          effectivePlaying
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: txtcolor,
+                                          size: 28,
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+
+                              // Next button
+                              IconButton(
+                                onPressed: () async {
+                                  await audioService.skipToNext();
+                                },
+                                icon: Icon(
+                                  Icons.skip_next,
+                                  color: txtcolor,
+                                  size: 24,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -271,9 +295,11 @@ class _MiniPlayerState extends State<MiniPlayer> {
       child: Skeletonizer(
         enabled: true,
         effect: ShimmerEffect(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
           baseColor: cardcolor,
           highlightColor: cardcolor.withAlpha(160),
-          duration: const Duration(milliseconds: 900),
+          duration: const Duration(milliseconds: 980),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

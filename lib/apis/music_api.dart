@@ -1,17 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
-import 'package:retry/retry.dart';
-
-import '../apis/api.dart';
-import '../models/music_model.dart';
+import 'package:dio/dio.dart';
+import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:sautifyv2/fetch_music_data.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 
+import '../apis/api.dart';
+import '../models/music_model.dart';
+
 class Api implements MusicAPI {
   MusicMetadata? musicMetaData;
-  final MusicStreamingService _service = MusicStreamingService();
+  // Reuse a shared streaming service to avoid leaking resources (e.g.,
+  // YoutubeExplode instance, connectivity listeners) when Api is created
+  // ad-hoc for single calls.
+  static final MusicStreamingService _service = MusicStreamingService();
 
   @override
   Future<String> getDownloadUrl(String videoId) async {
@@ -29,31 +32,57 @@ class Api implements MusicAPI {
       // Fall through to HTTP API fallback
     }
 
-    // 2) Fallback to HTTP API with retry/timeout
+    // 2) Fallback to HTTP API using Dio with smart retry
     try {
-      final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
-      final musicData = await retry(
-        () => http
-            .get(
-              Uri.parse(
-                'https://apis-keith.vercel.app/download/dlmp3?url=$youtubeUrl',
-              ),
-            )
-            .timeout(const Duration(seconds: 10)),
-        retryIf: (e) => e is TimeoutException || e is http.ClientException,
-        maxAttempts: 3,
-        delayFactor: const Duration(seconds: 3),
+      final dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 45),
+          sendTimeout: const Duration(seconds: 20),
+          responseType: ResponseType.json,
+          // We accept JSON; Dio will decode to Map if possible.
+          contentType: 'application/json',
+        ),
       );
 
-      if (musicData.statusCode == 200) {
-        final jsonResponse = jsonDecode(musicData.body);
+      dio.interceptors.add(
+        RetryInterceptor(
+          dio: dio,
+          logPrint: (obj) {},
+          retries: 2,
+          retryDelays: const [Duration(seconds: 3), Duration(seconds: 6)],
+          // Retry on network errors/timeouts and 5xx
+          retryEvaluator: (error, attempt) {
+            if (error.type == DioExceptionType.cancel) return false;
+            if (error.type == DioExceptionType.connectionTimeout ||
+                error.type == DioExceptionType.receiveTimeout ||
+                error.type == DioExceptionType.sendTimeout ||
+                error.type == DioExceptionType.connectionError) {
+              return true;
+            }
+            final status = error.response?.statusCode ?? 0;
+            return status >= 500 && status < 600;
+          },
+        ),
+      );
+
+      final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
+      final resp = await dio.get(
+        'https://apis-keith.vercel.app/download/dlmp3',
+        queryParameters: {'url': youtubeUrl},
+      );
+
+      final status = resp.statusCode ?? 0;
+      if (status == 200) {
+        final dynamic body = resp.data;
+        final Map<String, dynamic> jsonResponse = body is String
+            ? jsonDecode(body) as Map<String, dynamic>
+            : (body as Map<String, dynamic>);
         final meta = MusicMetadata.fromJson(jsonResponse);
         musicMetaData = meta;
         return meta.downloadUrl;
       } else {
-        throw Exception(
-          'Failed to fetch stream (status ${musicData.statusCode})',
-        );
+        throw Exception('Failed to fetch stream (status $status)');
       }
     } catch (e) {
       throw Exception('Check your internet connection and try again.');
@@ -96,6 +125,8 @@ class Api implements MusicAPI {
   }
 
   void dispose() {
-    _service.dispose();
+    // Intentionally no-op: _service is shared across Api instances.
+    // If you need to dispose at app shutdown, expose a static method
+    // (e.g., Api.disposeShared()) and call it from a top-level place.
   }
 }

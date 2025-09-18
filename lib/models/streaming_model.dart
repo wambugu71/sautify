@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 class StreamingData {
   final String videoId;
   final String title;
@@ -8,6 +14,8 @@ class StreamingData {
   final StreamingQuality quality;
   final DateTime cachedAt;
   final bool isAvailable;
+  // New: local file indicator
+  final bool isLocal;
 
   StreamingData({
     required this.videoId,
@@ -19,9 +27,12 @@ class StreamingData {
     this.quality = StreamingQuality.medium,
     DateTime? cachedAt,
     this.isAvailable = false,
+    this.isLocal = false,
   }) : cachedAt = cachedAt ?? DateTime.now();
 
   bool get isExpired {
+    // Local files never expire
+    if (isLocal) return false;
     // YouTube URLs typically expire after 6 hours
     return DateTime.now().difference(cachedAt).inHours > 6;
   }
@@ -38,6 +49,7 @@ class StreamingData {
     StreamingQuality? quality,
     DateTime? cachedAt,
     bool? isAvailable,
+    bool? isLocal,
   }) {
     return StreamingData(
       videoId: videoId ?? this.videoId,
@@ -49,6 +61,7 @@ class StreamingData {
       quality: quality ?? this.quality,
       cachedAt: cachedAt ?? this.cachedAt,
       isAvailable: isAvailable ?? this.isAvailable,
+      isLocal: isLocal ?? this.isLocal,
     );
   }
 
@@ -63,6 +76,7 @@ class StreamingData {
       'quality': quality.index,
       'cachedAt': cachedAt.millisecondsSinceEpoch,
       'isAvailable': isAvailable,
+      'isLocal': isLocal,
     };
   }
 
@@ -77,14 +91,15 @@ class StreamingData {
           : null,
       streamUrl: json['streamUrl'],
       quality: StreamingQuality.values[json['quality'] ?? 1],
-      cachedAt: DateTime.fromMillisecondsSinceEpoch(json['cachedAt']),
+      cachedAt: DateTime.fromMillisecondsSinceEpoch(json['cachedAt'] ?? DateTime.now().millisecondsSinceEpoch),
       isAvailable: json['isAvailable'] ?? false,
+      isLocal: json['isLocal'] ?? false,
     );
   }
 
   @override
   String toString() {
-    return 'StreamingData(videoId: $videoId, title: $title, isReady: $isReady)';
+    return 'StreamingData(videoId: $videoId, title: $title, isReady: $isReady, isLocal: $isLocal)';
   }
 }
 

@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2025 Wambugu Kinyua
+Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+*/
+
 import 'package:dart_ytmusic_api/yt_music.dart';
 
 void main() async {
@@ -80,11 +86,23 @@ void main() async {
     }
     */
 
-    var search = await ytmusic.getSearchSuggestions('Wakadinali');
-    for (var suggestion in search) {
-      // ignore: avoid_print
-      print('Suggestion: $suggestion');
+    // var search = await ytmusic.getSearchSuggestions('Wakadinali');
+    //  for (var suggestion in search) {
+    // ignore: avoid_print
+    //print('Suggestion: $suggestion');
+    //  }
+
+    var synclyrics = await ytmusic.getTimedLyrics('Xj0BjCfMwTw');
+    print('Message: ${synclyrics?.sourceMessage}');
+
+    if (synclyrics!.timedLyricsData.isNotEmpty) {
+      for (var lyricsdata in synclyrics.timedLyricsData) {
+        print(
+          "Lyric: ${lyricsdata.lyricLine}, Cue Range: ${lyricsdata.cueRange!.startTimeMilliseconds} - ${lyricsdata.cueRange!.endTimeMilliseconds}",
+        );
+      }
     }
+    print('Done !');
   } catch (e) {
     // ignore: avoid_print
     print('Error: $e');

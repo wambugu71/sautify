@@ -1,0 +1,14 @@
+{
+  "@@locale": "am",
+  "appTitle": "Sautify",
+  "homeTitle": "መነሻ",
+  "libraryTitle": "ቤተ-መጽሐፍት",
+  "settingsTitle": "ቅንብሮች",
+  "searchHint": "ዘፈኖችን ፣ አርቲስቶችን ፣ አልበሞችን ይፈልጉ ።",
+  "nowPlaying": "አሁን መጫወት",
+  "songsCount": "{count, plural, one {# song} other {# songs}}",
+  "downloaded": "ይዘው ወደ ውስጥ ይገኛሉ",
+  "offline": "ውስጥ",
+  "error": "ስህተት",
+  "retry": "ይሞክሩ"
+}
