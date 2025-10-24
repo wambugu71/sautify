@@ -45,15 +45,16 @@ class SettingsScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: bgcolor,
           appBar: AppBar(
+            centerTitle: true,
             title: const Text(
               'Settings',
               style: TextStyle(
-                fontFamily: 'asimovian',
+                fontFamily: 'Roboto',
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
               ),
             ),
-            backgroundColor: appbarcolor,
+            backgroundColor: bgcolor,
             foregroundColor: Colors.white,
           ),
           body: Theme(
@@ -405,7 +406,9 @@ class SettingsScreen extends StatelessWidget {
                       await prefs.remove('recent_searches');
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Recent searches cleared')),
+                          const SnackBar(
+                            content: Text('Recent searches cleared'),
+                          ),
                         );
                       }
                     },

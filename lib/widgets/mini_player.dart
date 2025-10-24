@@ -5,7 +5,10 @@ https://creativecommons.org/licenses/by/4.0/
 */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
+import 'package:progress_indicator_m3e/progress_indicator_m3e.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/models/track_info.dart';
 import 'package:sautifyv2/screens/player_screen.dart';
@@ -85,11 +88,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   height: 80,
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: bgcolor, // Use player background color
+                    color: appbarcolor.withAlpha(
+                      10,
+                    ), // Use player background color
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(100),
+                        color: appbarcolor.withAlpha(10),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -97,16 +102,18 @@ class _MiniPlayerState extends State<MiniPlayer> {
                   ),
                   child: Column(
                     children: [
+                      //(value: 0.6),
                       // Progress bar - now uses the synchronized progress from trackInfo
                       Container(
                         height: 3,
                         margin: const EdgeInsets.symmetric(horizontal: 12),
-                        child: LinearProgressIndicator(
+                        child: LinearProgressIndicatorM3E(
+                          inset: 0,
+                          shape: ProgressM3EShape.wavy,
+                          size: LinearProgressM3ESize.s,
                           value: progress,
-                          backgroundColor: iconcolor.withAlpha(50),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            appbarcolor,
-                          ),
+                          trackColor: iconcolor,
+                          activeColor: appbarcolor.withAlpha(255),
                         ),
                       ),
 
@@ -117,15 +124,25 @@ class _MiniPlayerState extends State<MiniPlayer> {
                           child: Row(
                             children: [
                               // Album art with caching
-                              Container(
+                              M3Container.c7SidedCookie(
                                 width: 48,
                                 height: 48,
-                                decoration: BoxDecoration(
+                                /*  decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
                                   color: cardcolor,
-                                ),
+                                ),*/
                                 child: currentTrack.thumbnailUrl != null
                                     ? CachedNetworkImage(
+                                        placeholder: M3Container.c7SidedCookie(
+                                          color: bgcolor.withAlpha(155),
+                                          child: LoadingIndicatorM3E(
+                                            containerColor: bgcolor.withAlpha(
+                                              100,
+                                            ),
+
+                                            color: appbarcolor.withAlpha(155),
+                                          ),
+                                        ),
                                         imageUrl: currentTrack.thumbnailUrl!,
                                         borderRadius: BorderRadius.circular(8),
                                         fit: BoxFit.cover,
@@ -177,16 +194,22 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               ),
 
                               // Previous button
-                              IconButton(
-                                onPressed: () async {
-                                  await audioService.skipToPrevious();
-                                },
-                                icon: Icon(
-                                  Icons.skip_previous,
-                                  color: txtcolor,
-                                  size: 24,
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(100),
+                                  color: appbarcolor.withAlpha(155),
                                 ),
-                                visualDensity: VisualDensity.compact,
+                                child: IconButton(
+                                  onPressed: () async {
+                                    await audioService.skipToPrevious();
+                                  },
+                                  icon: Icon(
+                                    Icons.skip_previous,
+                                    color: txtcolor,
+                                    size: 24,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
                               ),
 
                               // Play/Pause button with loading state (only when NOT playing AND preparing/loading)
@@ -218,31 +241,36 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                           child: SizedBox(
                                             width: 28,
                                             height: 28,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    txtcolor,
-                                                  ),
+                                            child: LoadingIndicatorM3E(
+                                              containerColor: bgcolor,
+                                              color: appbarcolor.withAlpha(155),
                                             ),
                                           ),
                                         );
                                       }
 
-                                      return IconButton(
-                                        onPressed: () async {
-                                          if (effectivePlaying) {
-                                            await audioService.pause();
-                                          } else {
-                                            await audioService.play();
-                                          }
-                                        },
-                                        icon: Icon(
-                                          effectivePlaying
-                                              ? Icons.pause
-                                              : Icons.play_arrow,
-                                          color: txtcolor,
-                                          size: 28,
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            100,
+                                          ),
+                                          color: appbarcolor.withAlpha(155),
+                                        ),
+                                        child: IconButton(
+                                          onPressed: () async {
+                                            if (effectivePlaying) {
+                                              await audioService.pause();
+                                            } else {
+                                              await audioService.play();
+                                            }
+                                          },
+                                          icon: Icon(
+                                            effectivePlaying
+                                                ? Icons.pause
+                                                : Icons.play_arrow,
+                                            color: txtcolor,
+                                            size: 28,
+                                          ),
                                         ),
                                       );
                                     },
@@ -251,16 +279,22 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               ),
 
                               // Next button
-                              IconButton(
-                                onPressed: () async {
-                                  await audioService.skipToNext();
-                                },
-                                icon: Icon(
-                                  Icons.skip_next,
-                                  color: txtcolor,
-                                  size: 24,
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(100),
+                                  color: appbarcolor.withAlpha(155),
                                 ),
-                                visualDensity: VisualDensity.compact,
+                                child: IconButton(
+                                  onPressed: () async {
+                                    await audioService.skipToNext();
+                                  },
+                                  icon: Icon(
+                                    Icons.skip_next,
+                                    color: txtcolor,
+                                    size: 24,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
                               ),
                             ],
                           ),

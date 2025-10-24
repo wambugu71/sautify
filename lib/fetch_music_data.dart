@@ -11,6 +11,7 @@ import 'dart:io' show Platform;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
@@ -81,24 +82,19 @@ class MusicStreamingService {
     final stopwatch = Stopwatch()..start();
     final successful = <StreamingData>[];
     final failed = <String>[];
-
-    // Process in batches of 5
-    final batches = _createBatches(videoIds, _maxConcurrentRequests);
-
-    for (final batch in batches) {
-      final futures = batch.map((videoId) => _processVideoId(videoId, quality));
-      final results = await Future.wait(futures, eagerError: false);
-
-      for (int i = 0; i < results.length; i++) {
-        final result = results[i];
-        if (result != null) {
-          successful.add(result);
-          _streamCache[batch[i]] = result;
+    final futures = <Future<void>>[];
+    for (final id in videoIds) {
+      futures.add(() async {
+        final r = await _processVideoId(id, quality);
+        if (r != null) {
+          successful.add(r);
+          _streamCache[id] = r;
         } else {
-          failed.add(batch[i]);
+          failed.add(id);
         }
-      }
+      }());
     }
+    await Future.wait(futures, eagerError: false);
 
     stopwatch.stop();
     return BatchProcessingResult(
@@ -173,7 +169,9 @@ class MusicStreamingService {
         final result = await _fetchStreamingDataHedged(videoId, quality);
         if (result != null) return result;
       } catch (e) {
-        print('Hedged attempt $attempt failed for $videoId: $e');
+        if (kDebugMode) {
+          debugPrint('Hedged attempt $attempt failed for $videoId: $e');
+        }
       }
       if (attempt < _retryAttempts) {
         await Future.delayed(Duration(milliseconds: 500 * attempt));
@@ -243,21 +241,38 @@ class MusicStreamingService {
     String videoId,
     StreamingQuality quality,
   ) async {
-    // Primary: YouTube Explode direct link generation
+    final Stopwatch sw = Stopwatch()..start();
+    StreamingData? winner;
+    Object? primaryError;
+
+    // Primary: Okatsu API
     try {
-      final ytResult = await _fetchFromYouTubeExplode(videoId, quality);
-      if (ytResult != null) return ytResult;
-    } catch (_) {
-      // fallthrough to fallback
+      winner = await _fetchFromOkatsu(videoId, quality);
+    } catch (e) {
+      primaryError = e;
+      if (kDebugMode) {
+        debugPrint('[resolve] Okatsu failed for $videoId: $e');
+      }
     }
 
-    // Fallback: Keith API
-    try {
-      final keithResult = await _fetchFromPrimaryService(videoId, quality);
-      return keithResult; // may be null
-    } catch (_) {
-      return null;
+    // Fallback: YouTubeExplode
+    if (winner == null) {
+      try {
+        winner = await _fetchFromYouTubeExplode(videoId, quality);
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[resolve] YoutubeExplode failed for $videoId: $e');
+        }
+      }
     }
+
+    sw.stop();
+    if (kDebugMode) {
+      debugPrint(
+        '[resolve] vid=$videoId total=${sw.elapsedMilliseconds}ms primaryError=${primaryError != null} winner=${winner == null ? 'none' : winner.quality.toString()}',
+      );
+    }
+    return winner;
   }
 
   void _refreshInBackground(String videoId, StreamingQuality quality) {
@@ -279,38 +294,152 @@ class MusicStreamingService {
   }
 
   /// Primary streaming service (your current API)
+  // DISABLED: Vercel API completely failing - kept for reference
+  // ignore: unused_element
   Future<StreamingData?> _fetchFromPrimaryService(
     String videoId,
     StreamingQuality quality,
   ) async {
     final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
-    final response = await _dio.get(
-      "https://apis-keith.vercel.app/download/dlmp3",
-      queryParameters: {"url": youtubeUrl},
-      options: Options(receiveTimeout: _requestTimeout),
-    );
 
-    if (response.statusCode == 200) {
-      final jsonResponse = response.data is String
-          ? jsonDecode(response.data as String)
-          : response.data as Map<String, dynamic>;
-      final data = jsonResponse['result']?['data'] ?? {};
-      final downloadUrl = data['downloadUrl'];
+    // Try multiple Keith API variants to improve resilience
+    final List<String> endpoints = <String>[
+      'https://apis-keith.vercel.app/download/dlmp3',
+      'https://apis-keith.vercel.app/download/mp3',
+    ];
 
-      if (downloadUrl != null) {
+    for (final endpoint in endpoints) {
+      try {
+        final response = await _dio.get(
+          endpoint,
+          queryParameters: {"url": youtubeUrl},
+          options: Options(
+            receiveTimeout: _requestTimeout,
+            // Do not throw on 4xx/5xx; we'll handle statuses below
+            validateStatus: (status) => true,
+          ),
+        );
+
+        final status = response.statusCode ?? 0;
+        if (status != 200 || response.data == null) {
+          continue; // try next endpoint
+        }
+
+        final Map<String, dynamic> jsonResponse = response.data is String
+            ? (jsonDecode(response.data as String) as Map<String, dynamic>)
+            : (response.data as Map<String, dynamic>);
+
+        // Support multiple shapes: {result:{data:{downloadUrl}}} or {result:"url"}
+        Map<String, dynamic>? data;
+        String? directUrl;
+        try {
+          final res = jsonResponse['result'];
+          if (res is Map<String, dynamic>) {
+            data = (res['data'] as Map<String, dynamic>?);
+            directUrl = res['downloadUrl'] as String?;
+          } else if (res is String) {
+            directUrl = res;
+          }
+        } catch (_) {}
+
+        final downloadUrl = directUrl ?? data?['downloadUrl'] as String?;
+        if (downloadUrl == null) {
+          continue; // try next endpoint
+        }
+
         return StreamingData(
           videoId: videoId,
-          title: data['title'] ?? 'Unknown',
-          artist: data['artist'] ?? 'Unknown Artist',
-          thumbnailUrl: data['thumbnail'], // prefer provided artwork
-          duration: data['duration'] != null
-              ? Duration(seconds: (data['duration'] as num).toInt())
+          title: (data?['title'] as String?) ?? 'Unknown',
+          artist: (data?['artist'] as String?) ?? 'Unknown Artist',
+          thumbnailUrl:
+              data?['thumbnail'] as String?, // prefer provided artwork
+          duration: (data?['duration'] != null)
+              ? Duration(seconds: (data!['duration'] as num).toInt())
               : null,
           streamUrl: downloadUrl,
           quality: quality,
           isAvailable: true,
         );
+      } catch (_) {
+        // swallow and try next endpoint
+        continue;
       }
+    }
+
+    return null; // all endpoints failed
+  }
+
+  /// New primary: Okatsu API provider
+  Future<StreamingData?> _fetchFromOkatsu(
+    String videoId,
+    StreamingQuality quality,
+  ) async {
+    final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
+    try {
+      final response = await _dio.get(
+        'https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3',
+        queryParameters: {'url': youtubeUrl},
+        options: Options(
+          receiveTimeout: _requestTimeout,
+          validateStatus: (status) => true,
+          headers: const {
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118 Safari/537.36',
+          },
+        ),
+      );
+
+      final status = response.statusCode ?? 0;
+      if (status != 200 || response.data == null) return null;
+
+      final Map<String, dynamic> jsonResponse = response.data is String
+          ? (jsonDecode(response.data as String) as Map<String, dynamic>)
+          : (response.data as Map<String, dynamic>);
+
+      final bool ok = jsonResponse['status'] == true;
+      final String? dl = jsonResponse['dl'] as String?;
+      if (!ok || dl == null || dl.isEmpty || !dl.startsWith('http')) {
+        return null;
+      }
+
+      final String title = (jsonResponse['title'] as String?) ?? 'Unknown';
+      final String? thumb = jsonResponse['thumb'] as String?;
+      final int? durationSec = (jsonResponse['duration'] as num?)?.toInt();
+
+      final StreamingQuality inferredQ = _inferQualityFromUrl(dl) ?? quality;
+
+      return StreamingData(
+        videoId: videoId,
+        title: title,
+        artist: 'Unknown Artist',
+        thumbnailUrl: thumb,
+        duration: durationSec != null ? Duration(seconds: durationSec) : null,
+        streamUrl: dl,
+        quality: inferredQ,
+        isAvailable: true,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  StreamingQuality? _inferQualityFromUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('-320-') ||
+        lower.contains('320kb') ||
+        lower.contains('320.')) {
+      return StreamingQuality.high;
+    }
+    if (lower.contains('-192-') ||
+        lower.contains('192kb') ||
+        lower.contains('192.')) {
+      return StreamingQuality.medium;
+    }
+    if (lower.contains('-128-') ||
+        lower.contains('128kb') ||
+        lower.contains('128.')) {
+      return StreamingQuality.low;
     }
     return null;
   }
@@ -321,8 +450,14 @@ class MusicStreamingService {
     StreamingQuality quality,
   ) async {
     try {
-      final video = await _yt.videos.get(videoId);
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+      final videoFuture = _yt.videos.get(videoId);
+      final manifestFuture = _yt.videos.streamsClient.getManifest(videoId);
+      final results = await Future.wait([
+        videoFuture,
+        manifestFuture,
+      ], eagerError: false);
+      final video = results[0] as Video;
+      final manifest = results[1] as StreamManifest;
 
       // Platform-aware container preference: iOS/macOS prefer mp4 (m4a),
       // Android/Windows/Linux prefer webm (opus). Fallback to any.
@@ -403,14 +538,6 @@ class MusicStreamingService {
   }
 
   /// Create batches for concurrent processing
-  List<List<String>> _createBatches(List<String> items, int batchSize) {
-    final batches = <List<String>>[];
-    for (int i = 0; i < items.length; i += batchSize) {
-      final end = (i + batchSize < items.length) ? i + batchSize : items.length;
-      batches.add(items.sublist(i, end));
-    }
-    return batches;
-  }
 
   /// Dispose resources
   void dispose() {

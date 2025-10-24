@@ -5,6 +5,7 @@ https://creativecommons.org/licenses/by/4.0/
 */
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -13,11 +14,14 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:sautifyv2/db/library_store.dart';
 import 'package:sautifyv2/fetch_music_data.dart';
+import 'package:sautifyv2/models/loading_progress_model.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:sautifyv2/models/track_info.dart';
 import 'package:sautifyv2/services/dio_client.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
 import 'package:sautifyv2/services/settings_service.dart';
+
+import '../isolate/playlist_worker.dart' show playlistWorkerEntry;
 
 class AudioPlayerService extends ChangeNotifier {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
@@ -27,7 +31,121 @@ class AudioPlayerService extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
   final MusicStreamingService _streamingService = MusicStreamingService();
   final ImageCacheService _imageCacheService = ImageCacheService();
-  ConcatenatingAudioSource? _audioSource;
+  // Progressive incremental insertion state
+  final Set<int> _materializedIndices = <int>{};
+  int? _currentProgressiveWorkerReqId;
+  Future<void> _insertionQueue = Future<void>.value();
+
+  // Isolate support for heavy playlist building
+  SendPort? _playlistWorkerSendPort;
+  Isolate? _playlistWorker;
+  ReceivePort?
+  _playlistWorkerReceivePort; // retained so it isn't GC'd & can be closed on dispose
+  int _playlistWorkerRequestCounter = 0;
+  static const int _isolateThreshold = 80; // min tracks to offload
+  bool enableProgressiveIsolate = true; // feature flag
+  // New: enforce resolving all stream URLs before feeding the player
+  bool resolveAllBeforeFeeding = true; // set true to guarantee full metadata
+  final Duration _isolateOverallTimeout = const Duration(seconds: 6);
+  Stopwatch? _currentLoadStopwatch;
+  DateTime? _firstProgressAt;
+  DateTime? _firstPlayableAt;
+  int _lastProgressResolvedCount = 0;
+  DateTime? _loadStartAt;
+
+  // Debounced preparing state exposure
+  bool _internalPreparing = false;
+  Timer? _preparingDebounceTimer;
+
+  // Progress tracking for playlist loading
+  final ValueNotifier<LoadingProgress?> loadingProgress =
+      ValueNotifier<LoadingProgress?>(null);
+
+  Future<void> _initPlaylistWorker() async {
+    if (_playlistWorkerSendPort != null) return; // already initialized
+    final ReceivePort rp = ReceivePort();
+    _playlistWorkerReceivePort = rp; // retain reference
+    _playlistWorker = await Isolate.spawn(
+      _playlistWorkerEntryPoint,
+      rp.sendPort,
+      debugName: 'playlist_worker',
+      errorsAreFatal: false,
+    );
+    final c = Completer<SendPort>();
+    rp.listen((message) {
+      if (message is SendPort && !c.isCompleted) {
+        c.complete(message);
+        return;
+      }
+      if (message is Map && message.containsKey('requestId')) {
+        final int reqId = message['requestId'] as int? ?? -1;
+        final completer = _pendingWorkerRequests.remove(reqId);
+        Map<String, dynamic>? typed;
+        try {
+          typed = Map<String, dynamic>.from(message);
+          if (completer != null && !completer.isCompleted) {
+            completer.complete(typed);
+          }
+        } catch (e, st) {
+          if (completer != null && !completer.isCompleted) {
+            completer.completeError(e, st);
+          }
+        }
+        if (typed != null) {
+          // Always handle worker messages (progress/done) even if a completer consumed it
+          _handleWorkerMessage(typed);
+        }
+      }
+    });
+    _playlistWorkerSendPort = await c.future;
+  }
+
+  final Map<int, Completer<Map<String, dynamic>>> _pendingWorkerRequests = {};
+
+  Future<Map<String, dynamic>?> _offloadBuildPlaylist(
+    List<StreamingData> list,
+    int requestId,
+  ) async {
+    try {
+      await _initPlaylistWorker();
+      final send = _playlistWorkerSendPort;
+      if (send == null) return null;
+      final int localReqId = ++_playlistWorkerRequestCounter;
+      final completer = Completer<Map<String, dynamic>>();
+      _pendingWorkerRequests[localReqId] = completer;
+      // Prepare lightweight serializable track list
+      final tracks = <Map<String, dynamic>>[];
+      for (final t in list) {
+        tracks.add({
+          'videoId': t.videoId,
+          'title': t.title,
+          'artist': t.artist,
+          'thumbnailUrl': t.thumbnailUrl,
+          'durationMs': t.duration?.inMilliseconds,
+          'streamUrl': t.streamUrl,
+          'isLocal': t.isLocal,
+          'isReady': t.isReady,
+        });
+      }
+      // Use new combined build + resolve path so we can receive fully resolved items
+      send.send({
+        'cmd': 'buildAndResolve',
+        'tracks': tracks,
+        'requestId': localReqId,
+        'quality': 'medium', // TODO: wire through user quality preference
+      });
+      final res = await completer.future.timeout(const Duration(seconds: 3));
+      // Ignore if main load superseded meanwhile
+      if (requestId != _loadRequestId) return null;
+      return res;
+    } catch (_) {
+      return null; // fallback to main thread
+    }
+  }
+
+  static void _playlistWorkerEntryPoint(SendPort sp) {
+    playlistWorkerEntry(sp);
+  }
 
   List<StreamingData> _playlist = [];
   int _currentIndex = 0;
@@ -50,6 +168,32 @@ class AudioPlayerService extends ChangeNotifier {
   // Maintain mapping from audio child index -> playlist index for the current source
   List<int> _childToPlaylistIndex = <int>[];
 
+  // Playlist fingerprint to detect identity changes quickly
+  String? _playlistFingerprint;
+  String? get playlistFingerprint => _playlistFingerprint;
+
+  String _computeFingerprint(List<StreamingData> tracks) {
+    if (tracks.isEmpty) return 'empty';
+    final ids = <String>[];
+    final take = tracks.length <= 6 ? tracks.length : 3;
+    for (int i = 0; i < take; i++) {
+      ids.add(tracks[i].videoId);
+    }
+    if (tracks.length > take) {
+      for (int i = tracks.length - take; i < tracks.length; i++) {
+        ids.add(tracks[i].videoId);
+      }
+    }
+    final basis = '${tracks.length}|${ids.join(',')}';
+    int hash = 0xcbf29ce484222325; // FNV-1a 64-bit basis
+    const int prime = 0x100000001b3;
+    for (final cu in basis.codeUnits) {
+      hash ^= cu;
+      hash = (hash * prime) & 0xFFFFFFFFFFFFFFFF;
+    }
+    return hash.toRadixString(16);
+  }
+
   // Current track stream controller
   final StreamController<StreamingData?> _currentTrackController =
       StreamController<StreamingData?>.broadcast();
@@ -60,14 +204,31 @@ class AudioPlayerService extends ChangeNotifier {
   TrackInfo? _lastTrackInfo;
   DateTime _lastProgressEmit = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Constant durations used in throttling / delays
+  static const Duration _progressThrottle = Duration(milliseconds: 250);
+  static const Duration _significantProgressDelta = Duration(milliseconds: 200);
+
+  // Loop mode string mapping (avoids switch allocation each emission)
+  static const Map<LoopMode, String> _loopModeString = <LoopMode, String>{
+    LoopMode.off: 'off',
+    LoopMode.one: 'one',
+    LoopMode.all: 'all',
+  };
+
+  // Lightweight derived snapshot stream (optional consumer optimization)
+  Stream<PlaybackSnapshot> get playbackSnapshotStream => trackInfoStream.map(
+    (t) => PlaybackSnapshot(
+      videoId: t.track?.videoId,
+      isPlaying: t.isPlaying,
+      progress: t.progress,
+    ),
+  );
+
   // Expose preparation/loading state for UI skeletons
   final ValueNotifier<bool> isPreparing = ValueNotifier<bool>(false);
 
   // Concurrency guards
   int _loadRequestId = 0; // monotonically increasing id for load operations
-  bool _seekInProgress = false;
-  int? _pendingSeekIndex;
-  Duration _pendingSeekPosition = Duration.zero;
 
   // Getters
   AudioPlayer get player => _player;
@@ -128,18 +289,7 @@ class AudioPlayerService extends ChangeNotifier {
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
 
-    String loopModeString = 'off';
-    switch (loopMode) {
-      case LoopMode.off:
-        loopModeString = 'off';
-        break;
-      case LoopMode.one:
-        loopModeString = 'one';
-        break;
-      case LoopMode.all:
-        loopModeString = 'all';
-        break;
-    }
+    final String loopModeString = _loopModeString[loopMode] ?? 'off';
 
     return TrackInfo(
       track: track,
@@ -182,8 +332,9 @@ class AudioPlayerService extends ChangeNotifier {
     final lastPosMs = _lastTrackInfo?.position.inMilliseconds ?? -1;
     final posDeltaMs = (info.position.inMilliseconds - lastPosMs).abs();
     final canEmitProgress =
-        now.difference(_lastProgressEmit) > const Duration(milliseconds: 250);
-    final significantProgress = posDeltaMs >= 200;
+        now.difference(_lastProgressEmit) > _progressThrottle;
+    final significantProgress =
+        posDeltaMs >= _significantProgressDelta.inMilliseconds;
 
     if (force || otherChanged || (significantProgress && canEmitProgress)) {
       _trackInfoController.add(info);
@@ -335,7 +486,7 @@ class AudioPlayerService extends ChangeNotifier {
     });
   }
 
-  /// Load and play a playlist with gapless playback
+  /// Backwards compatible API: always forces full replace semantics.
   Future<void> loadPlaylist(
     List<StreamingData> tracks, {
     int initialIndex = 0,
@@ -343,100 +494,235 @@ class AudioPlayerService extends ChangeNotifier {
     String? sourceName,
     String sourceType = 'QUEUE',
   }) async {
-    // Bump request id to cancel any in-flight load operations
-    final int requestId = ++_loadRequestId;
-    isPreparing.value = true;
-    try {
-      _playlist = tracks;
-      _currentIndex = initialIndex;
-      _preloadedIndices.clear();
+    await replacePlaylist(
+      tracks,
+      initialIndex: initialIndex,
+      autoPlay: autoPlay,
+      sourceName: sourceName,
+      sourceType: sourceType,
+      force: true,
+    );
+  }
 
-      // Set source context
+  /// Jump inside existing playlist.
+  Future<void> jumpToIndex(int index) async {
+    if (index < 0 || index >= _playlist.length) return;
+    if (index == _currentIndex) {
+      if (!_player.playing) await _player.play();
+      return;
+    }
+    await seek(Duration.zero, index: index);
+  }
+
+  /// Replace playlist only when identity changed (or force). Returns true if replaced.
+  Future<bool> replacePlaylist(
+    List<StreamingData> newTracks, {
+    int initialIndex = 0,
+    bool autoPlay = true,
+    String? sourceName,
+    String sourceType = 'QUEUE',
+    bool force = false,
+  }) async {
+    // Enforce global max queue size of 25, keeping the selected track inside the window
+    List<StreamingData> cappedTracks;
+    int cappedInitialIndex;
+    if (newTracks.length > 25) {
+      final total = newTracks.length;
+      int start = initialIndex - 12; // aim to center selection
+      if (start < 0) start = 0;
+      if (start > total - 25) start = total - 25;
+      final end = start + 25;
+      cappedTracks = newTracks.sublist(start, end);
+      cappedInitialIndex = initialIndex - start;
+    } else {
+      cappedTracks = newTracks;
+      cappedInitialIndex = initialIndex.clamp(0, newTracks.length - 1);
+    }
+
+    final newFp = _computeFingerprint(cappedTracks);
+    final same =
+        !force && _playlistFingerprint != null && _playlistFingerprint == newFp;
+    if (same) {
+      if (cappedInitialIndex >= 0 && cappedInitialIndex < _playlist.length) {
+        await jumpToIndex(cappedInitialIndex);
+      }
+      return false;
+    }
+    _playlistFingerprint = newFp;
+
+    final int requestId = ++_loadRequestId;
+    _setPreparing(true);
+    try {
+      _playlist = cappedTracks;
+      _currentIndex = cappedInitialIndex;
+      _materializedIndices.clear();
+      _preloadedIndices.clear();
+      _currentLoadStopwatch = Stopwatch()..start();
+      _loadStartAt = DateTime.now();
+      _firstProgressAt = null;
+      _firstPlayableAt = null;
+      _lastProgressResolvedCount = 0;
       _sourceName = sourceName;
       _sourceType = sourceType;
 
-      // Ensure the selected track is ready first for correct index mapping
-      await _ensureTrackReady(_currentIndex, requestId: requestId);
-      if (requestId != _loadRequestId) return; // superseded by newer request
+      // Keep progress tracking for telemetry but don't show it
+      // Progress overlay has been disabled - songs stream in background
+      loadingProgress.value = null;
 
-      // Build audio source in order of playlist using only ready tracks
-      await _rebuildAudioSource(
-        preferPlaylistIndex: _currentIndex,
-        preservePosition: false,
-        requestId: requestId,
-      );
-      if (requestId != _loadRequestId) return;
+      if (resolveAllBeforeFeeding) {
+        await _resolveAllTracksThenBuild(
+          requestId: requestId,
+          autoPlay: autoPlay,
+        );
+      } else {
+        // Original progressive/small playlist handling (unchanged)
+        final bool largeAndProgressive =
+            _playlist.length >= _isolateThreshold && enableProgressiveIsolate;
 
-      // Proactively start preparing the immediate next track so pressing
-      // "Next" from the first song switches quickly.
-      if (_playlist.length > 1) {
-        final nextIdx = (_currentIndex + 1) % _playlist.length;
-        // Fire-and-forget; resolve streaming data without triggering a
-        // rebuild that could affect the current track's position.
-        // ignore: discarded_futures
-        _streamingService
-            .fetchStreamingData(
-              _playlist[nextIdx].videoId,
-              _getPreferredQuality(),
-            )
-            .then((result) async {
-              if (result != null) {
-                // Merge streaming details into the playlist but avoid a rebuild.
-                final old = _playlist[nextIdx];
-                _playlist[nextIdx] = old.copyWith(
-                  title: old.title.isNotEmpty ? old.title : result.title,
-                  artist: old.artist.isNotEmpty ? old.artist : result.artist,
-                  thumbnailUrl: result.thumbnailUrl ?? old.thumbnailUrl,
-                  duration: old.duration ?? result.duration,
-                  streamUrl: result.streamUrl,
-                  quality: result.quality,
-                  cachedAt: result.cachedAt,
-                  isAvailable: result.isAvailable,
+        if (!largeAndProgressive &&
+            _currentIndex >= 0 &&
+            _currentIndex < _playlist.length &&
+            !_playlist[_currentIndex].isReady) {
+          await _ensureTrackReady(_currentIndex, requestId: requestId);
+          if (requestId != _loadRequestId) return true;
+        }
+
+        if (largeAndProgressive) {
+          _cancelProgressiveBuild();
+          final prefetchIndices = <int>{_currentIndex};
+          if (_currentIndex + 1 < _playlist.length)
+            prefetchIndices.add(_currentIndex + 1);
+          if (_currentIndex + 2 < _playlist.length)
+            prefetchIndices.add(_currentIndex + 2);
+          final futures = <Future<void>>[];
+          for (final i in prefetchIndices) {
+            if (_playlist[i].isReady) continue;
+            futures.add(() async {
+              final r = await _streamingService.fetchStreamingData(
+                _playlist[i].videoId,
+                _getPreferredQuality(),
+              );
+              if (r != null) {
+                final old = _playlist[i];
+                _playlist[i] = old.copyWith(
+                  streamUrl: r.streamUrl,
+                  quality: r.quality,
+                  cachedAt: r.cachedAt,
+                  isAvailable: true,
+                  title: old.title.isNotEmpty ? old.title : r.title,
+                  artist: old.artist.isNotEmpty ? old.artist : r.artist,
+                  duration: old.duration ?? r.duration,
+                  thumbnailUrl: r.thumbnailUrl ?? old.thumbnailUrl,
                 );
-                // Ensure the next track is present in the audio source mapping
-                // so users can skip immediately.
-                if (!_childToPlaylistIndex.contains(nextIdx)) {
-                  await _rebuildAudioSource(
-                    preferPlaylistIndex: _currentIndex,
-                    preservePosition: true,
-                    requestId: requestId,
-                  );
-                }
               }
-            });
+            }());
+          }
+          if (futures.isNotEmpty) {
+            await futures.first;
+          }
+          if (_playlist[_currentIndex].isReady &&
+              _playlist[_currentIndex].streamUrl != null) {
+            await _setMinimalSingleSource(_currentIndex, autoPlay: autoPlay);
+            _firstPlayableAt ??= DateTime.now();
+            if (autoPlay) {
+              _setPreparing(false);
+            }
+          }
+          // ignore: discarded_futures
+          _startProgressiveIsolateBuild(
+            requestId: requestId,
+            autoPlay: autoPlay,
+            initialFastMode: true,
+          );
+        } else {
+          await _rebuildAudioSource(
+            preferPlaylistIndex: _currentIndex,
+            preservePosition: false,
+            requestId: requestId,
+          );
+          if (autoPlay) {
+            final readyAndMapped =
+                _currentIndex < _playlist.length &&
+                _playlist[_currentIndex].isReady &&
+                _childToPlaylistIndex.contains(_currentIndex);
+            if (readyAndMapped) {
+              await _player.play();
+            } else {
+              await seek(Duration.zero, index: _currentIndex);
+            }
+          }
+
+          final loadedCount = _playlist
+              .where((t) => t.isReady && t.streamUrl != null)
+              .length;
+          loadingProgress.value = LoadingProgress(
+            totalTracks: _playlist.length,
+            loadedTracks: loadedCount,
+            failedTracks: 0,
+            phase: LoadingPhase.complete,
+          );
+        }
       }
 
-      // Apply shuffle/loop preferences before starting playback
       await _player.setLoopMode(_loopMode);
-      await _player.setShuffleModeEnabled(_isShuffleEnabled);
-
-      if (autoPlay) {
-        // Seek to the selected index and start playback
-        await seek(Duration.zero, index: _currentIndex);
+      if (!resolveAllBeforeFeeding) {
+        final largeAndProgressive =
+            _playlist.length >= _isolateThreshold && enableProgressiveIsolate;
+        if (!largeAndProgressive || _childToPlaylistIndex.length > 1) {
+          await _player.setShuffleModeEnabled(_isShuffleEnabled);
+        }
+      } else {
+        await _player.setShuffleModeEnabled(_isShuffleEnabled);
       }
 
-      // Preload upcoming tracks
-      _preloadUpcomingSongs();
-      _warmNextConnection();
+      final warmDelay = resolveAllBeforeFeeding
+          ? const Duration(milliseconds: 350)
+          : ((_playlist.length >= _isolateThreshold && enableProgressiveIsolate)
+                ? const Duration(milliseconds: 1000)
+                : const Duration(milliseconds: 350));
+      Future.delayed(warmDelay, () {
+        if (requestId != _loadRequestId) return;
+        _preloadUpcomingSongs();
+        _warmNextConnection();
+        _preloadImages();
+        _warmPlaylistStreamingUrls();
+      });
 
-      // Preload album art images for current and upcoming tracks
-      _preloadImages();
-
-      // Also warm the entire playlist's streaming URLs in background
-      // to make arbitrary queue taps instant
-      _warmPlaylistStreamingUrls();
-
-      // Emit initial current track
       _currentTrackController.add(currentTrack);
       _emitTrackInfo(force: true);
       notifyListeners();
-    } catch (e) {
-      print('Error loading playlist: $e');
-      rethrow;
+      return true;
     } finally {
-      // Only the latest request clears the preparing flag
       if (requestId == _loadRequestId) {
-        isPreparing.value = false;
+        _setPreparing(false);
+
+        // Clear or complete progress after a delay to allow UI to show completion
+        if (loadingProgress.value != null &&
+            !loadingProgress.value!.isComplete) {
+          final loadedCount = _playlist
+              .where((t) => t.isReady && t.streamUrl != null)
+              .length;
+          loadingProgress.value = LoadingProgress(
+            totalTracks: _playlist.length,
+            loadedTracks: loadedCount,
+            failedTracks: 0,
+            phase: LoadingPhase.complete,
+          );
+        }
+
+        _emitPerfLog(
+          'finalizeLoad',
+          extra: {
+            'playlistSize': _playlist.length,
+            'progressive':
+                _playlist.length >= _isolateThreshold &&
+                enableProgressiveIsolate,
+            'fingerprint': _playlistFingerprint,
+            'largeFastPath':
+                _playlist.length >= _isolateThreshold &&
+                enableProgressiveIsolate,
+          },
+        );
       }
     }
   }
@@ -451,6 +737,84 @@ class AudioPlayerService extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  // Resolve all tracks' stream URLs and metadata before building audio source
+  Future<void> _resolveAllTracksThenBuild({
+    required int requestId,
+    required bool autoPlay,
+  }) async {
+    final quality = _getPreferredQuality();
+    // Resolve in parallel with existing service limits
+    final futures = <Future<void>>[];
+    for (int i = 0; i < _playlist.length; i++) {
+      if (_playlist[i].isReady && _playlist[i].streamUrl != null) continue;
+      final idx = i;
+      futures.add(() async {
+        final r = await _streamingService.fetchStreamingData(
+          _playlist[idx].videoId,
+          quality,
+        );
+        if (r != null) {
+          final old = _playlist[idx];
+          _playlist[idx] = old.copyWith(
+            streamUrl: r.streamUrl,
+            quality: r.quality,
+            cachedAt: r.cachedAt,
+            isAvailable: true,
+            title: old.title.isNotEmpty ? old.title : r.title,
+            artist: old.artist.isNotEmpty ? old.artist : r.artist,
+            duration: old.duration ?? r.duration,
+            thumbnailUrl: r.thumbnailUrl ?? old.thumbnailUrl,
+          );
+        }
+      }());
+    }
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
+    }
+    if (requestId != _loadRequestId) return;
+
+    // Build children from fully-resolved playlist
+    final children = <AudioSource>[];
+    final readyIndices = <int>[];
+    for (int i = 0; i < _playlist.length; i++) {
+      final t = _playlist[i];
+      if (!t.isReady || t.streamUrl == null) continue;
+      children.add(
+        AudioSource.uri(
+          _toPlayableUri(t.streamUrl!, isLocal: t.isLocal),
+          tag: MediaItem(
+            id: t.videoId,
+            title: t.title,
+            artist: t.artist,
+            duration: t.duration,
+            artUri: t.thumbnailUrl != null
+                ? Uri.tryParse(t.thumbnailUrl!)
+                : null,
+            extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+          ),
+        ),
+      );
+      readyIndices.add(i);
+    }
+
+    if (children.isEmpty) return;
+
+    _childToPlaylistIndex = List<int>.from(readyIndices);
+    final initChildIndex = _getAudioSourceIndex(
+      _currentIndex,
+    ).clamp(0, children.length - 1);
+
+    final bool wasShuffled = _player.shuffleModeEnabled;
+    if (wasShuffled) await _player.setShuffleModeEnabled(false);
+    await _player.setAudioSources(
+      children,
+      initialIndex: initChildIndex,
+      initialPosition: Duration.zero,
+    );
+    if (wasShuffled) await _player.setShuffleModeEnabled(true);
+    if (autoPlay) await _player.play();
   }
 
   /// Issue a tiny byte-range request to the next track to warm DNS/TLS/CDN.
@@ -541,93 +905,38 @@ class AudioPlayerService extends ChangeNotifier {
 
   /// Seek to position
   Future<void> seek(Duration position, {int? index}) async {
-    // Queue rapid track-change seeks to avoid races
     if (index != null) {
-      if (_seekInProgress) {
-        _pendingSeekIndex = index;
-        _pendingSeekPosition = position;
-        return;
+      if (index < 0 || index >= _playlist.length) return;
+      // Ensure streaming info ready if needed
+      await _ensureTrackReady(index);
+      if (!_playlist[index].isReady) return;
+      // If mapping doesn't include the target yet, rebuild preserving position
+      if (!_childToPlaylistIndex.contains(index)) {
+        await _rebuildAudioSource(
+          preferPlaylistIndex: _currentIndex,
+          preservePosition: true,
+        );
       }
-      _seekInProgress = true;
+      final childIndex = _childToPlaylistIndex.indexOf(index);
+      if (childIndex < 0) return; // still not mapped
+      final effectiveIndex = _childIndexToSequenceIndex(childIndex);
       try {
-        await _seekInternal(position, index: index);
-      } finally {
-        _seekInProgress = false;
-        // Process the latest pending seek if any
-        if (_pendingSeekIndex != null) {
-          final nextIndex = _pendingSeekIndex!;
-          final nextPos = _pendingSeekPosition;
-          _pendingSeekIndex = null;
-          await seek(nextPos, index: nextIndex);
-        }
+        await _player.seek(position, index: effectiveIndex);
+      } catch (_) {
+        // Fallback to simple seek
+        await _player.seek(position);
+      }
+      if (index != _currentIndex) {
+        _currentIndex = index;
+        _currentTrackController.add(currentTrack);
+        _emitTrackInfo(force: true);
+        notifyListeners();
+        _preloadImages();
       }
       return;
     }
-
-    // Position-only seek
+    // Seek within current track only
     await _player.seek(position);
-  }
-
-  Future<void> _seekInternal(Duration position, {required int index}) async {
-    if (index >= 0 && index < _playlist.length) {
-      isPreparing.value = true;
-      try {
-        // Ensure the target track is ready and included in the audio source
-        await _ensureTrackReady(index);
-
-        // Verify readiness
-        if (!_playlist[index].isReady) {
-          if (kDebugMode) {
-            print('Warning: Track at index $index is not ready for playback');
-          }
-          return;
-        }
-
-        // If mapping doesn't yet include this playlist index, rebuild once more
-        if (!_childToPlaylistIndex.contains(index)) {
-          await _rebuildAudioSource(
-            preferPlaylistIndex: _currentIndex,
-            preservePosition: true,
-          );
-        }
-
-        // If still not included, abort gracefully (avoid seeking wrong track)
-        final childIndex = _childToPlaylistIndex.indexOf(index);
-        if (_audioSource == null || childIndex < 0) {
-          if (kDebugMode) {
-            print('Seek aborted: target index $index not in audio source yet');
-          }
-          return;
-        }
-
-        // Compute effective (sequence) index under current shuffle state
-        final effectiveIndex = _childIndexToSequenceIndex(childIndex);
-
-        try {
-          await _player.seek(position, index: effectiveIndex);
-          await _player.play(); // Ensure playback starts
-
-          // Update current metadata/UI only after a successful seek
-          if (index != _currentIndex) {
-            _currentIndex = index;
-            _currentTrackController.add(currentTrack);
-            _emitTrackInfo(force: true);
-            notifyListeners();
-
-            // Preload images for the new current track and upcoming tracks
-            _preloadImages();
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('Error seeking to effective index $effectiveIndex: $e');
-          }
-          // Fallback: try to play without seeking to specific index
-          await _player.play();
-        }
-      } finally {
-        isPreparing.value = false;
-      }
-    }
   }
 
   /// Skip to next track
@@ -740,7 +1049,7 @@ class AudioPlayerService extends ChangeNotifier {
     return _childToPlaylistIndex[childIndex];
   }
 
-  /// Map playlist index -> child index in ConcatenatingAudioSource
+  /// Map playlist index -> child index in the current audio source list
   int _playlistIndexToChildIndex(int playlistIndex) {
     if (playlistIndex < 0 || playlistIndex >= _playlist.length) return -1;
     // Use mapping if available
@@ -838,9 +1147,8 @@ class AudioPlayerService extends ChangeNotifier {
     );
 
     if (kDebugMode) {
-      print(
-        'Batch processing completed: ${result.successCount}/${result.totalCount} '
-        'in ${result.processingTime.inMilliseconds}ms',
+      debugPrint(
+        'Batch processing completed: ${result.successCount}/${result.totalCount} in ${result.processingTime.inMilliseconds}ms',
       );
     }
 
@@ -948,7 +1256,7 @@ class AudioPlayerService extends ChangeNotifier {
       await _batchProcessTracks(pending);
     } catch (e) {
       if (kDebugMode) {
-        print('Warm-up failed: $e');
+        debugPrint('Warm-up failed: $e');
       }
     }
   }
@@ -993,7 +1301,7 @@ class AudioPlayerService extends ChangeNotifier {
     }
   }
 
-  /// Rebuild ConcatenatingAudioSource from the current playlist in order
+  /// Rebuild player sources from the current playlist in order
   Future<void> _rebuildAudioSource({
     int? preferPlaylistIndex,
     bool preservePosition = true,
@@ -1002,30 +1310,90 @@ class AudioPlayerService extends ChangeNotifier {
     // If called from a superseded load, abort early
     if (requestId != null && requestId != _loadRequestId) return;
 
-    // Build children for ready tracks in playlist order
-    final children = <AudioSource>[];
-    final readyIndices =
-        <int>[]; // Map from child (audio) index to playlist index
-    for (int i = 0; i < _playlist.length; i++) {
-      final t = _playlist[i];
-      if (t.isReady && t.streamUrl != null) {
-        final uri = _toPlayableUri(t.streamUrl!, isLocal: t.isLocal);
-        children.add(
-          AudioSource.uri(
-            uri,
-            tag: MediaItem(
-              id: t.videoId,
-              title: t.title,
-              artist: t.artist,
-              duration: t.duration,
-              artUri: t.thumbnailUrl != null
-                  ? Uri.tryParse(t.thumbnailUrl!)
-                  : null,
-              extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+    List<AudioSource> children = <AudioSource>[];
+    List<int> readyIndices = <int>[];
+
+    if (_playlist.length >= _isolateThreshold) {
+      final result = await _offloadBuildPlaylist(
+        _playlist,
+        requestId ?? _loadRequestId,
+      );
+      if (result != null) {
+        // New response format: type=resolveDone, resolved:[{index,...}], failed:[...]
+        final resolved = (result['resolved'] as List<dynamic>? ?? const []);
+        for (final r in resolved) {
+          if (r is Map<String, dynamic>) {
+            final idx = r['index'] as int?;
+            final streamUrl = r['streamUrl'] as String?;
+            if (idx == null || streamUrl == null) continue;
+            if (idx < 0 || idx >= _playlist.length) continue;
+            final original = _playlist[idx];
+            final updated = original.copyWith(
+              streamUrl: streamUrl,
+              isAvailable: true,
+              title: r['title'] as String? ?? original.title,
+              artist: r['artist'] as String? ?? original.artist,
+              duration: (r['durationMs'] is int)
+                  ? Duration(milliseconds: r['durationMs'] as int)
+                  : original.duration,
+              // thumbnail not in copyWith signature differently; use copyWith
+              thumbnailUrl:
+                  r['thumbnailUrl'] as String? ?? original.thumbnailUrl,
+            );
+            _playlist[idx] = updated; // mutate list entry
+          }
+        }
+        // Build children from updated playlist
+        for (int i = 0; i < _playlist.length; i++) {
+          final t = _playlist[i];
+          if (t.isReady && t.streamUrl != null) {
+            final uri = _toPlayableUri(t.streamUrl!, isLocal: t.isLocal);
+            children.add(
+              AudioSource.uri(
+                uri,
+                tag: MediaItem(
+                  id: t.videoId,
+                  title: t.title,
+                  artist: t.artist,
+                  duration: t.duration,
+                  artUri: t.thumbnailUrl != null
+                      ? Uri.tryParse(t.thumbnailUrl!)
+                      : null,
+                  extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+                ),
+              ),
+            );
+            readyIndices.add(i);
+          }
+        }
+      }
+    }
+
+    if (children.isEmpty) {
+      // Fallback to main isolate build
+      children = <AudioSource>[];
+      readyIndices = <int>[];
+      for (int i = 0; i < _playlist.length; i++) {
+        final t = _playlist[i];
+        if (t.isReady && t.streamUrl != null) {
+          final uri = _toPlayableUri(t.streamUrl!, isLocal: t.isLocal);
+          children.add(
+            AudioSource.uri(
+              uri,
+              tag: MediaItem(
+                id: t.videoId,
+                title: t.title,
+                artist: t.artist,
+                duration: t.duration,
+                artUri: t.thumbnailUrl != null
+                    ? Uri.tryParse(t.thumbnailUrl!)
+                    : null,
+                extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+              ),
             ),
-          ),
-        );
-        readyIndices.add(i);
+          );
+          readyIndices.add(i);
+        }
       }
     }
 
@@ -1065,11 +1433,6 @@ class AudioPlayerService extends ChangeNotifier {
     }
 
     // Create and set the new audio source
-    final newSource = ConcatenatingAudioSource(
-      children: children,
-      useLazyPreparation: true,
-    );
-
     // Decide initial position: keep position only if staying on same playlist index and that track is ready
     final keepPosition =
         preservePosition &&
@@ -1087,15 +1450,15 @@ class AudioPlayerService extends ChangeNotifier {
     }
 
     try {
-      await _player.setAudioSource(
-        newSource,
+      await _player.setAudioSources(
+        children,
         initialIndex: newChildIndex.clamp(0, children.length - 1),
         initialPosition: keepPosition ? prevPosition : Duration.zero,
       );
     } on PlayerException catch (e) {
       // Auto-recovery: attempt to refresh the failing track's URL and retry once
       if (kDebugMode) {
-        print('PlayerException during setAudioSource: ${e.message}');
+        debugPrint('PlayerException during setAudioSource: ${e.message}');
       }
       final failingPlaylistIndex = _childToPlaylistIndex.isNotEmpty
           ? _childToPlaylistIndex[newChildIndex.clamp(
@@ -1147,18 +1510,13 @@ class AudioPlayerService extends ChangeNotifier {
 
         if (retryChildren.isNotEmpty) {
           _childToPlaylistIndex = List<int>.from(retryReadyIndices);
-          final retrySource = ConcatenatingAudioSource(
-            children: retryChildren,
-            useLazyPreparation: true,
-          );
-          await _player.setAudioSource(
-            retrySource,
+          await _player.setAudioSources(
+            retryChildren,
             initialIndex: _getAudioSourceIndex(
               _currentIndex,
             ).clamp(0, retryChildren.length - 1),
             initialPosition: keepPosition ? prevPosition : Duration.zero,
           );
-          _audioSource = retrySource;
         } else {
           rethrow;
         }
@@ -1166,8 +1524,6 @@ class AudioPlayerService extends ChangeNotifier {
         rethrow;
       }
     }
-
-    _audioSource = newSource;
 
     // Restore shuffle state
     if (wasShuffled) {
@@ -1194,12 +1550,296 @@ class AudioPlayerService extends ChangeNotifier {
   /// Dispose resources
   @override
   void dispose() {
+    // Cleanly tear down isolate *only* when service is disposed (app shutdown)
+    try {
+      _playlistWorkerReceivePort?.close();
+    } catch (_) {}
+    try {
+      _playlistWorker?.kill(priority: Isolate.immediate);
+    } catch (_) {}
+    _playlistWorkerReceivePort = null;
+    _playlistWorkerSendPort = null;
+    _playlistWorker = null;
     _currentTrackController.close();
     _trackInfoController.close();
     _player.dispose();
     _streamingService.dispose();
     isPreparing.dispose();
+    loadingProgress.dispose();
     super.dispose();
+  }
+
+  void _setMinimalChildMapping(int playlistIndex) {
+    _childToPlaylistIndex = [playlistIndex];
+  }
+
+  Future<void> _setMinimalSingleSource(
+    int playlistIndex, {
+    required bool autoPlay,
+  }) async {
+    final t = _playlist[playlistIndex];
+    if (!t.isReady || t.streamUrl == null) return;
+    final uri = _toPlayableUri(t.streamUrl!, isLocal: t.isLocal);
+    _setMinimalChildMapping(playlistIndex);
+    await _player.setAudioSource(
+      AudioSource.uri(
+        uri,
+        tag: MediaItem(
+          id: t.videoId,
+          title: t.title,
+          artist: t.artist,
+          duration: t.duration,
+          artUri: t.thumbnailUrl != null ? Uri.tryParse(t.thumbnailUrl!) : null,
+          extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
+        ),
+      ),
+      preload: true,
+    );
+    if (autoPlay) {
+      await _player.play();
+    }
+  }
+
+  // Serialize insertion operations to avoid race conditions with just_audio internal queue
+  void _enqueueInsertion(Future<void> Function() op) {
+    _insertionQueue = _insertionQueue.then((_) => op()).catchError((_) {});
+  }
+
+  Future<void> _insertResolvedTrack(int playlistIndex) async {
+    // Simplified: rebuild full source to include newly ready track
+    if (playlistIndex < 0 || playlistIndex >= _playlist.length) return;
+    if (!(_playlist[playlistIndex].isReady &&
+        _playlist[playlistIndex].streamUrl != null))
+      return;
+    await _rebuildAudioSource(preservePosition: true);
+    _materializedIndices.add(playlistIndex);
+  }
+
+  void _handleWorkerMessage(Map<String, dynamic> message) {
+    final type = message['type'];
+    if (type != 'progress' && type != 'done')
+      return; // only handle progressive events
+    // Guard against superseded loads
+    final reqId = message['requestId'] as int?;
+    if (reqId == null || reqId != _currentProgressiveWorkerReqId) return;
+    if (_playlist.isEmpty) return;
+    final resolved = (message['resolved'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
+    final failed = (message['failed'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
+
+    // Update loading progress for UI
+    _updateLoadingProgress(resolved, failed, type == 'done');
+
+    if (resolved.isEmpty) return;
+    // Update internal playlist entries & schedule insertions for newly playable tracks
+    for (final r in resolved) {
+      final idx = r['index'] as int?;
+      final streamUrl = r['streamUrl'] as String?;
+      if (idx == null || streamUrl == null) continue;
+      if (idx < 0 || idx >= _playlist.length) continue;
+      final original = _playlist[idx];
+      final updated = original.copyWith(
+        streamUrl: streamUrl,
+        title: (r['title'] as String?) ?? original.title,
+        artist: (r['artist'] as String?) ?? original.artist,
+        duration: (r['durationMs'] is int)
+            ? Duration(milliseconds: r['durationMs'] as int)
+            : original.duration,
+        thumbnailUrl: (r['thumbnailUrl'] as String?) ?? original.thumbnailUrl,
+        isAvailable: true,
+      );
+      _playlist[idx] = updated;
+      // Enqueue insertion (serialized) for newly ready tracks not yet materialized
+      if (!_materializedIndices.contains(idx)) {
+        _enqueueInsertion(() => _insertResolvedTrack(idx));
+      }
+    }
+    _lastProgressResolvedCount =
+        resolved.length; // for perf log (cumulative list length from worker)
+    _firstProgressAt ??= DateTime.now();
+    if (_firstPlayableAt == null && _materializedIndices.isNotEmpty) {
+      _firstPlayableAt = DateTime.now();
+    }
+    if (type == 'done') {
+      _emitPerfLog(
+        'progressiveDone',
+        extra: {
+          'totalResolved': resolved.length,
+          'playlistSize': _playlist.length,
+        },
+      );
+    } else {
+      _emitPerfLog(
+        'progress',
+        extra: {
+          'resolved': resolved.length,
+          'materialized': _materializedIndices.length,
+        },
+      );
+    }
+  }
+
+  void _updateLoadingProgress(
+    List<Map<String, dynamic>> resolved,
+    List<Map<String, dynamic>> failed,
+    bool isDone,
+  ) {
+    // Build track statuses map from the current state of the playlist
+    final statuses = <String, TrackLoadStatus>{};
+    int loadedCount = 0;
+    int failedCount = 0;
+
+    // Create sets for quick lookup
+    final resolvedVideoIds = <String>{};
+    for (final track in resolved) {
+      final videoId = track['videoId'] as String?;
+      if (videoId != null) {
+        resolvedVideoIds.add(videoId);
+      }
+    }
+
+    final failedVideoIds = <String>{};
+    for (final track in failed) {
+      final videoId = track['videoId'] as String?;
+      if (videoId != null) {
+        failedVideoIds.add(videoId);
+      }
+    }
+
+    // Iterate through playlist and determine status for each track
+    for (final track in _playlist) {
+      if (resolvedVideoIds.contains(track.videoId)) {
+        statuses[track.videoId] = TrackLoadStatus.loaded;
+        loadedCount++;
+      } else if (failedVideoIds.contains(track.videoId)) {
+        statuses[track.videoId] = TrackLoadStatus.failed;
+        failedCount++;
+      } else if (track.isReady && track.streamUrl != null) {
+        // Track was already ready (e.g., from cache)
+        statuses[track.videoId] = TrackLoadStatus.loaded;
+        loadedCount++;
+      } else {
+        statuses[track.videoId] = TrackLoadStatus.pending;
+      }
+    }
+
+    // Update progress
+    loadingProgress.value = LoadingProgress(
+      totalTracks: _playlist.length,
+      loadedTracks: loadedCount,
+      failedTracks: failedCount,
+      phase: isDone ? LoadingPhase.complete : LoadingPhase.loading,
+      trackStatuses: statuses,
+    );
+
+    notifyListeners();
+  }
+
+  void _setPreparing(bool value) {
+    if (value == _internalPreparing) return;
+    _internalPreparing = value;
+    _preparingDebounceTimer?.cancel();
+    if (value) {
+      _preparingDebounceTimer = Timer(const Duration(milliseconds: 120), () {
+        if (_internalPreparing) {
+          isPreparing.value = true;
+        }
+      });
+    } else {
+      isPreparing.value = false;
+    }
+  }
+
+  void _emitPerfLog(String phase, {Map<String, Object?> extra = const {}}) {
+    if (!kDebugMode) return;
+    final map = <String, Object?>{
+      'phase': phase,
+      'elapsedMs': _currentLoadStopwatch?.elapsedMilliseconds,
+      'firstProgressMs': _firstProgressAt == null || _loadStartAt == null
+          ? null
+          : _firstProgressAt!.difference(_loadStartAt!).inMilliseconds,
+      'firstPlayableMs': _firstPlayableAt == null || _loadStartAt == null
+          ? null
+          : _firstPlayableAt!.difference(_loadStartAt!).inMilliseconds,
+      'resolvedCount': _lastProgressResolvedCount,
+      ...extra,
+    };
+    debugPrint('[perf][playlistLoad] ${map.toString()}');
+  }
+
+  Future<void> _startProgressiveIsolateBuild({
+    required int requestId,
+    required bool autoPlay,
+    bool initialFastMode = false,
+  }) async {
+    try {
+      await _initPlaylistWorker();
+      final send = _playlistWorkerSendPort;
+      if (send == null) return;
+      final int localReqId = ++_playlistWorkerRequestCounter;
+      _currentProgressiveWorkerReqId = localReqId;
+      final completer = Completer<void>();
+      _pendingWorkerRequests[localReqId] =
+          Completer<Map<String, dynamic>>(); // dummy to leverage existing map
+      final tracks = <Map<String, dynamic>>[];
+      for (final t in _playlist) {
+        tracks.add({
+          'videoId': t.videoId,
+          'title': t.title,
+          'artist': t.artist,
+          'thumbnailUrl': t.thumbnailUrl,
+          'durationMs': t.duration?.inMilliseconds,
+          'streamUrl': t.streamUrl,
+          'isLocal': t.isLocal,
+          'isReady': t.isReady,
+        });
+      }
+      final startTime = DateTime.now();
+      send.send({
+        'cmd': 'buildAndResolve',
+        'progressive': true,
+        'tracks': tracks,
+        'requestId': localReqId,
+        'quality': 'medium',
+        'priorityIndex': _currentIndex,
+        'batchSize': initialFastMode ? 3 : 6,
+        'concurrency': 4,
+      });
+
+      // Listen for progress via existing receive port listener path
+      // We piggyback on rp listener which will put messages through the completer remove logic.
+      // We'll intercept messages by extending listener logic (below) – add handler here via microtask polling.
+
+      // Polling approach: not ideal but minimal invasive (we can restructure later)
+      () async {
+        final timeoutAt = startTime.add(_isolateOverallTimeout);
+        while (DateTime.now().isBefore(timeoutAt)) {
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+          if (requestId != _loadRequestId) return; // superseded
+          // Break if final done observed
+          if (_lastProgressResolvedCount >= _playlist.length) break;
+        }
+        if (!completer.isCompleted) completer.complete();
+      }();
+      await completer.future;
+    } catch (_) {
+      // fallback: rebuild synchronously later if needed
+    }
+  }
+
+  void _cancelProgressiveBuild() {
+    final send = _playlistWorkerSendPort;
+    final prev = _currentProgressiveWorkerReqId;
+    if (send != null && prev != null) {
+      try {
+        send.send({'cmd': 'cancel', 'requestId': prev});
+      } catch (_) {}
+    }
   }
 
   /// Handle playback completion
@@ -1242,4 +1882,17 @@ class AudioPlayerService extends ChangeNotifier {
       _streamingService.clearExpiredCache();
     } catch (_) {}
   }
+}
+
+/// Immutable lightweight snapshot for simple UI consumers that only need
+/// video id, playing state and progress. Does not alter existing data flow.
+class PlaybackSnapshot {
+  final String? videoId;
+  final bool isPlaying;
+  final double progress; // 0.0 - 1.0
+  const PlaybackSnapshot({
+    required this.videoId,
+    required this.isPlaying,
+    required this.progress,
+  });
 }

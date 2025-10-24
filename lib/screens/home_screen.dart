@@ -7,10 +7,13 @@ https://creativecommons.org/licenses/by/4.0/
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:expressive_refresh/expressive_refresh.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 // New imports for download/offline
 import 'package:http/http.dart' as http;
+import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -83,24 +86,46 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         backgroundColor: bgcolor,
         appBar: AppBar(
+          leading: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Container(
+              decoration: BoxDecoration(
+                // color: appbarcolor.withAlpha(155),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                // Use a Builder to obtain a context that is below the
+                // ChangeNotifierProvider so Provider.of/read works.
+                child: Builder(
+                  builder: (ctx) => IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    onPressed: () {
+                      ctx.read<HomeNotifier>().fetchHomeSections();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
           elevation: 0,
+          centerTitle: true,
           title: const Text(
             'S A U T I F Y',
             style: TextStyle(
-              fontFamily: 'asimovian',
+              fontFamily: 'RobotoMono',
               fontWeight: FontWeight.bold,
               fontSize: 24,
               letterSpacing: 4,
               color: Colors.white,
             ),
           ),
-          backgroundColor: appbarcolor,
+          backgroundColor: bgcolor,
           actions: [
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: appbarcolor.withAlpha(155),
+                  //     color: appbarcolor.withAlpha(155),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
@@ -119,27 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (context) => const SearchOverlayScreen(),
                       );
                     },
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: appbarcolor.withAlpha(155),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  // Use a Builder to obtain a context that is below the
-                  // ChangeNotifierProvider so Provider.of/read works.
-                  child: Builder(
-                    builder: (ctx) => IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      onPressed: () {
-                        ctx.read<HomeNotifier>().fetchHomeSections();
-                      },
-                    ),
                   ),
                 ),
               ),
@@ -170,10 +174,17 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
 
-            return RefreshIndicator(
-              backgroundColor: bgcolor,
-              elevation: 11,
-              color: appbarcolor,
+            return ExpressiveRefreshIndicator(
+              indicatorConstraints: BoxConstraints(
+                maxHeight: 80,
+                maxWidth: MediaQuery.of(context).size.width * 0.3,
+                minHeight: 60,
+                minWidth: MediaQuery.of(context).size.width * 0.15,
+              ),
+              //     backgroundColor: appbarcolor.withAlpha(200),
+              elevation: 3,
+              color: appbarcolor.withAlpha(255),
+              backgroundColor: cardcolor.withAlpha(155),
               onRefresh: () => homeNotifier.fetchHomeSections(),
               child: Skeletonizer(
                 enabled:
@@ -183,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 effect: ShimmerEffect(
                   baseColor: cardcolor,
                   highlightColor: cardcolor.withAlpha(153), // 60% opacity
-                  duration: const Duration(milliseconds: 1000),
+                  duration: const Duration(milliseconds: 800),
                 ),
                 child: ListView.builder(
                   padding: const EdgeInsets.only(
@@ -252,6 +263,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 final playlistItems = section.contents
                     .where((c) => (c.playlistId?.isNotEmpty ?? false))
                     .toList();
+                if (playlistItems.length > 25) {
+                  playlistItems.removeRange(25, playlistItems.length);
+                }
 
                 if (playlistItems.isEmpty) {
                   // Fallback to horizontal list if no valid playlist IDs
@@ -259,7 +273,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 220,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      itemCount: section.contents.length,
+                      itemCount: section.contents.length > 25
+                          ? 25
+                          : section.contents.length,
                       itemBuilder: (context, index) {
                         final content = section.contents[index];
                         return _buildContentCard(context, content);
@@ -330,7 +346,9 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 220,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: section.contents.length,
+                itemCount: section.contents.length > 25
+                    ? 25
+                    : section.contents.length,
                 itemBuilder: (context, index) {
                   final content = section.contents[index];
                   return _buildContentCard(context, content);
@@ -358,9 +376,9 @@ class _HomeScreenState extends State<HomeScreen> {
             content.videoId != null &&
             content.videoId!.isNotEmpty &&
             (_downloadsBox?.containsKey(content.videoId) ?? false);
-        return Container(
+        return M3Container.square(
           width: 200,
-          margin: const EdgeInsets.only(right: 12),
+          // margin: const EdgeInsets.only(right: 12),
           child: Material(
             color: cardcolor,
             borderRadius: BorderRadius.circular(4),
@@ -387,12 +405,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(4),
+                              top: Radius.circular(10),
                             ),
                             child: content.thumbnailUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: content.thumbnailUrl,
-                                    fit: BoxFit.cover,
+                                ? M3Container.pill(
+                                    child: CachedNetworkImage(
+                                      imageUrl: content.thumbnailUrl,
+                                      placeholder: M3Container.c7SidedCookie(
+                                        color: bgcolor.withAlpha(50),
+                                        child: LoadingIndicatorM3E(
+                                          containerColor: appbarcolor.withAlpha(
+                                            100,
+                                          ),
+                                          color: appbarcolor.withAlpha(155),
+                                          constraints: BoxConstraints(
+                                            maxHeight: 100,
+                                            maxWidth: 100,
+                                            minHeight: 50,
+                                            minWidth: 50,
+                                          ),
+                                        ),
+                                      ),
+                                      fit: BoxFit.cover,
+                                    ),
                                   )
                                 : Container(
                                     color: Colors.grey[300],
@@ -508,23 +543,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green[100],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            content.type,
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: Colors.green[700],
-                              fontWeight: FontWeight.w500,
+                        Row(
+                          children: [
+                            const SizedBox(width: 4),
+                            M3Container.c7SidedCookie(
+                              color: Colors.green[100],
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Text(
+                                  content.type,
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: Colors.green[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

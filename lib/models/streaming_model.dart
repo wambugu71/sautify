@@ -91,7 +91,9 @@ class StreamingData {
           : null,
       streamUrl: json['streamUrl'],
       quality: StreamingQuality.values[json['quality'] ?? 1],
-      cachedAt: DateTime.fromMillisecondsSinceEpoch(json['cachedAt'] ?? DateTime.now().millisecondsSinceEpoch),
+      cachedAt: DateTime.fromMillisecondsSinceEpoch(
+        json['cachedAt'] ?? DateTime.now().millisecondsSinceEpoch,
+      ),
       isAvailable: json['isAvailable'] ?? false,
       isLocal: json['isLocal'] ?? false,
     );

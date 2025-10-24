@@ -7,6 +7,8 @@ https://creativecommons.org/licenses/by/4.0/
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
+import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
 import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/models/playlist_models.dart';
@@ -224,7 +226,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                   decoration: BoxDecoration(
                     color: cardcolor,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: appbarcolor, width: 1),
+                    //border: Border.all(color: appbarcolor, width: 1),
                   ),
                   child: TextField(
                     controller: _controller,
@@ -259,9 +261,10 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: appbarcolor,
+                                child: LoadingIndicatorM3E(
+                                  containerColor: appbarcolor.withAlpha(100),
+                                  //strokeWidth: 2,
+                                  color: appbarcolor.withAlpha(155),
                                 ),
                               ),
                             )
@@ -301,7 +304,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                   ),
                 ),
               ),
-              AnimatedSwitcher(
+              /* AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: provider.isLoading
                     ? Padding(
@@ -314,7 +317,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                         ),
                       )
                     : const SizedBox(key: ValueKey('no_loading'), height: 8),
-              ),
+              ),*/
               if (settings.showRecentSearches) _buildRecentSection(provider),
             ],
           );
@@ -463,13 +466,14 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                 return;
                               _loadingAlbumId.value = album.albumId;
                               try {
-                                final tracks = await provider.fetchAlbumTracks(
-                                  album.albumId,
-                                );
+                                final tracksFull = await provider
+                                    .fetchAlbumTracks(album.albumId);
+                                final tracks = tracksFull.length > 25
+                                    ? tracksFull.sublist(0, 25)
+                                    : tracksFull;
                                 if (tracks.isEmpty) return;
 
-                                await audioService.stop();
-                                await audioService.loadPlaylist(
+                                await audioService.replacePlaylist(
                                   tracks,
                                   initialIndex: 0,
                                   autoPlay: true,
@@ -513,9 +517,11 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                   );
                                 }
                               } else {
-                                final tracks = await provider.fetchAlbumTracks(
-                                  album.albumId,
-                                );
+                                final tracksFull = await provider
+                                    .fetchAlbumTracks(album.albumId);
+                                final tracks = tracksFull.length > 25
+                                    ? tracksFull.sublist(0, 25)
+                                    : tracksFull;
                                 if (tracks.isEmpty) return;
                                 final saved = SavedAlbum(
                                   id: album.albumId,
@@ -534,188 +540,214 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                 }
                               }
                             },
-                            child: Container(
+                            child: M3Container.square(
                               width: 120,
-                              decoration: BoxDecoration(
-                                color: cardcolor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(12),
-                                      topRight: Radius.circular(12),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: AspectRatio(
-                                        aspectRatio: 1,
-                                        child: Stack(
-                                          children: [
-                                            album.thumbnailUrl != null
-                                                ? CachedNetworkImage(
-                                                    imageUrl:
-                                                        album.thumbnailUrl!,
-                                                    fit: BoxFit.cover,
-                                                    width: 104,
-                                                    height: 104,
-                                                  )
-                                                : Container(
-                                                    color: bgcolor,
-                                                    child: Icon(
-                                                      Icons.album,
-                                                      color: iconcolor,
-                                                    ),
-                                                  ),
-                                            Positioned(
-                                              top: 6,
-                                              right: 6,
-                                              child: Consumer<LibraryProvider>(
-                                                builder: (context, lib, __) {
-                                                  final isSaved = lib
-                                                      .getAlbums()
-                                                      .any(
-                                                        (a) =>
-                                                            a.id ==
-                                                            album.albumId,
-                                                      );
-                                                  return InkWell(
-                                                    onTap: () async {
-                                                      if (isSaved) {
-                                                        await lib.deleteAlbum(
-                                                          album.albumId,
-                                                        );
-                                                        if (context.mounted) {
-                                                          ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text(
-                                                                'Album removed from Library',
-                                                              ),
-                                                            ),
-                                                          );
-                                                        }
-                                                      } else {
-                                                        final tracks =
-                                                            await provider
-                                                                .fetchAlbumTracks(
-                                                                  album.albumId,
-                                                                );
-                                                        if (tracks.isEmpty)
-                                                          return;
-                                                        final saved =
-                                                            SavedAlbum(
-                                                              id: album.albumId,
-                                                              title:
-                                                                  album.title,
-                                                              artist:
-                                                                  album.artist,
-                                                              artworkUrl: album
-                                                                  .thumbnailUrl,
-                                                              tracks: tracks,
-                                                            );
-                                                        await lib.saveAlbum(
-                                                          saved,
-                                                        );
-                                                        if (context.mounted) {
-                                                          ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text(
-                                                                'Album saved to Library',
-                                                              ),
-                                                            ),
-                                                          );
-                                                        }
-                                                      }
-                                                    },
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          16,
+                              // decoration: BoxDecoration(
+                              color: cardcolor,
+                              // borderRadius: BorderRadius.circular(12),
+                              //),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        topRight: Radius.circular(12),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: AspectRatio(
+                                          aspectRatio: 1,
+                                          child: Stack(
+                                            children: [
+                                              album.thumbnailUrl != null
+                                                  ? M3Container.square(
+                                                      child: CachedNetworkImage(
+                                                        placeholder: M3Container.square(
+                                                          child: LoadingIndicatorM3E(
+                                                            containerColor:
+                                                                appbarcolor
+                                                                    .withAlpha(
+                                                                      100,
+                                                                    ),
+                                                            color: appbarcolor
+                                                                .withAlpha(155),
+                                                          ),
                                                         ),
-                                                    child: Container(
-                                                      decoration:
-                                                          const BoxDecoration(
-                                                            color:
-                                                                Colors.black26,
-                                                            shape:
-                                                                BoxShape.circle,
-                                                          ),
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            4,
-                                                          ),
+                                                        imageUrl:
+                                                            album.thumbnailUrl!,
+                                                        fit: BoxFit.cover,
+                                                        width: 104,
+                                                        height: 104,
+                                                      ),
+                                                    )
+                                                  : M3Container.square(
+                                                      color: bgcolor,
                                                       child: Icon(
-                                                        isSaved
-                                                            ? Icons.favorite
-                                                            : Icons
-                                                                  .favorite_border,
-                                                        color: isSaved
-                                                            ? Colors.red
-                                                            : Colors.white,
-                                                        size: 18,
+                                                        Icons.album,
+                                                        color: iconcolor,
                                                       ),
                                                     ),
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                            if (isLoadingThis)
-                                              Container(
-                                                width: double.infinity,
-                                                height: double.infinity,
-                                                color: Colors.black38,
-                                                alignment: Alignment.center,
-                                                child: SizedBox(
-                                                  width: 28,
-                                                  height: 28,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 3,
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation<
-                                                          Color
-                                                        >(appbarcolor),
-                                                  ),
+                                              Positioned(
+                                                top: 6,
+                                                right: 6,
+                                                child: Consumer<LibraryProvider>(
+                                                  builder: (context, lib, __) {
+                                                    final isSaved = lib
+                                                        .getAlbums()
+                                                        .any(
+                                                          (a) =>
+                                                              a.id ==
+                                                              album.albumId,
+                                                        );
+                                                    return InkWell(
+                                                      onTap: () async {
+                                                        if (isSaved) {
+                                                          await lib.deleteAlbum(
+                                                            album.albumId,
+                                                          );
+                                                          if (context.mounted) {
+                                                            ScaffoldMessenger.of(
+                                                              context,
+                                                            ).showSnackBar(
+                                                              const SnackBar(
+                                                                content: Text(
+                                                                  'Album removed from Library',
+                                                                ),
+                                                              ),
+                                                            );
+                                                          }
+                                                        } else {
+                                                          final tracks =
+                                                              await provider
+                                                                  .fetchAlbumTracks(
+                                                                    album
+                                                                        .albumId,
+                                                                  );
+                                                          if (tracks.isEmpty)
+                                                            return;
+                                                          final saved = SavedAlbum(
+                                                            id: album.albumId,
+                                                            title: album.title,
+                                                            artist:
+                                                                album.artist,
+                                                            artworkUrl: album
+                                                                .thumbnailUrl,
+                                                            tracks: tracks,
+                                                          );
+                                                          await lib.saveAlbum(
+                                                            saved,
+                                                          );
+                                                          if (context.mounted) {
+                                                            ScaffoldMessenger.of(
+                                                              context,
+                                                            ).showSnackBar(
+                                                              const SnackBar(
+                                                                content: Text(
+                                                                  'Album saved to Library',
+                                                                ),
+                                                              ),
+                                                            );
+                                                          }
+                                                        }
+                                                      },
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            16,
+                                                          ),
+                                                      child: Container(
+                                                        decoration:
+                                                            const BoxDecoration(
+                                                              color: Colors
+                                                                  .black26,
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              4,
+                                                            ),
+                                                        child: Icon(
+                                                          isSaved
+                                                              ? Icons.favorite
+                                                              : Icons
+                                                                    .favorite_border,
+                                                          color: isSaved
+                                                              ? Colors.red
+                                                              : Colors.white,
+                                                          size: 18,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
                                               ),
-                                          ],
+                                              if (isLoadingThis)
+                                                M3Container.square(
+                                                  width: double.infinity,
+                                                  height: double.infinity,
+                                                  color: Colors.black38,
+                                                  //  alignment: Alignment.center,
+                                                  child: Center(
+                                                    child: SizedBox(
+                                                      width: 28,
+                                                      height: 28,
+                                                      child:
+                                                          LoadingIndicatorM3E(
+                                                            containerColor:
+                                                                appbarcolor
+                                                                    .withAlpha(
+                                                                      100,
+                                                                    ),
+                                                            //strokeWidth: 3,
+                                                            color: appbarcolor
+                                                                .withAlpha(155),
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          album.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: txtcolor,
-                                            fontWeight: FontWeight.w600,
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            album.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: txtcolor,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          album.artist,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: txtcolor.withOpacity(0.7),
-                                            fontSize: 12,
+                                          const SizedBox(height: 2),
+                                          SizedBox(
+                                            width: 100,
+                                            child: Text(
+                                              album.artist,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: txtcolor.withAlpha(
+                                                  (255 * 0.7).toInt(),
+                                                ),
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -816,6 +848,12 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
+                    placeholder: M3Container.square(
+                      child: LoadingIndicatorM3E(
+                        containerColor: appbarcolor.withAlpha(100),
+                        color: appbarcolor.withAlpha(155),
+                      ),
+                    ),
                     imageUrl: track.thumbnailUrl!,
                     fit: BoxFit.cover,
                     width: 60,
@@ -857,9 +895,10 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                 ? SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(appbarcolor),
+                    child: LoadingIndicatorM3E(
+                      //strokeWidth: 2,
+                      containerColor: appbarcolor.withAlpha(100),
+                      color: appbarcolor.withAlpha(155),
                     ),
                   )
                 : Icon(Icons.play_arrow, color: appbarcolor, size: 28);
@@ -873,9 +912,23 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
           Future.microtask(() async {
             try {
               await audioService.stop();
+              // Cap queue around the selected index to max 25
+              List<StreamingData> capped;
+              int cappedIndex;
+              if (mutablePlaylist.length > 25) {
+                int start = index - 12;
+                if (start < 0) start = 0;
+                if (start > mutablePlaylist.length - 25)
+                  start = mutablePlaylist.length - 25;
+                capped = mutablePlaylist.sublist(start, start + 25);
+                cappedIndex = index - start;
+              } else {
+                capped = mutablePlaylist;
+                cappedIndex = index;
+              }
               await audioService.loadPlaylist(
-                mutablePlaylist,
-                initialIndex: index,
+                capped,
+                initialIndex: cappedIndex,
                 autoPlay: true,
                 sourceType: 'SEARCH',
                 sourceName: Provider.of<SearchProvider>(

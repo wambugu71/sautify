@@ -11,12 +11,13 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 class PlaylistProvider extends ChangeNotifier {
   final String playlistId;
   final PlaylistExtract _playlistExtract;
-  
+
   List<Video> _videos = [];
   bool _isLoading = false;
   String? _error;
 
-  PlaylistProvider(this.playlistId) : _playlistExtract = PlaylistExtract(playlistId: playlistId) {
+  PlaylistProvider(this.playlistId)
+    : _playlistExtract = PlaylistExtract(playlistId: playlistId) {
     loadPlaylistVideos();
   }
 
@@ -37,7 +38,7 @@ class PlaylistProvider extends ChangeNotifier {
 
     try {
       _videos = await _playlistExtract.fetchPlaylistVideos();
-      
+
       if (_videos.isEmpty) {
         _error = 'No videos found in this playlist';
       }

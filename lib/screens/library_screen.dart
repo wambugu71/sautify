@@ -7,7 +7,9 @@ https://creativecommons.org/licenses/by/4.0/
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:expressive_refresh/expressive_refresh.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
@@ -147,10 +149,11 @@ class _LibraryScreenState extends State<LibraryScreen>
           return Scaffold(
             backgroundColor: bgcolor,
             appBar: AppBar(
+              centerTitle: true,
               title: Text(
                 AppStrings.libraryTitle(SettingsService().localeCode),
               ),
-              backgroundColor: appbarcolor,
+              backgroundColor: bgcolor,
             ),
             body: const Center(child: CircularProgressIndicator()),
           );
@@ -171,18 +174,22 @@ class _LibraryScreenState extends State<LibraryScreen>
         return Scaffold(
           backgroundColor: bgcolor,
           appBar: AppBar(
+            centerTitle: true,
             title: Text(
               AppStrings.libraryTitle(SettingsService().localeCode),
               style: TextStyle(
-                fontFamily: 'asimovian',
+                fontFamily: 'Roboto',
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
               ),
             ),
-            backgroundColor: appbarcolor,
+            backgroundColor: bgcolor,
             foregroundColor: Colors.white,
           ),
-          body: RefreshIndicator(
+          body: ExpressiveRefreshIndicator(
+            backgroundColor: appbarcolor.withAlpha(100),
+            indicatorConstraints: BoxConstraints(maxHeight: 80),
+            color: appbarcolor,
             onRefresh: () async {
               await lib.refresh();
               _loadDownloads();
@@ -198,7 +205,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                   AppStrings.recentlyPlayed(SettingsService().localeCode),
                   onPlayAll: recents.isNotEmpty
                       ? () => _playTracks(
-                          recents,
+                          recents.length > 25
+                              ? recents.sublist(0, 25)
+                              : recents,
                           sourceType: 'RECENTS',
                           sourceName: AppStrings.recentlyPlayed(
                             SettingsService().localeCode,
@@ -207,7 +216,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       : null,
                 ),
                 _buildHorizontalTrackList(
-                  recents,
+                  recents.length > 25 ? recents.sublist(0, 25) : recents,
                   emptyLabel: AppStrings.noRecents(
                     SettingsService().localeCode,
                   ),
@@ -221,7 +230,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   AppStrings.favorites(SettingsService().localeCode),
                   onPlayAll: favs.isNotEmpty
                       ? () => _playTracks(
-                          favs,
+                          favs.length > 25 ? favs.sublist(0, 25) : favs,
                           sourceType: 'FAVORITES',
                           sourceName: AppStrings.likedSongs(
                             SettingsService().localeCode,
@@ -230,7 +239,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       : null,
                 ),
                 _buildHorizontalTrackList(
-                  favs,
+                  favs.length > 25 ? favs.sublist(0, 25) : favs,
                   emptyLabel: AppStrings.noFavorites(
                     SettingsService().localeCode,
                   ),
@@ -246,6 +255,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       ? () {
                           final all = playlists
                               .expand((p) => p.tracks)
+                              .take(25)
                               .toList();
                           _playTracks(
                             all,
@@ -264,7 +274,10 @@ class _LibraryScreenState extends State<LibraryScreen>
                   AppStrings.albums(SettingsService().localeCode),
                   onPlayAll: albums.isNotEmpty
                       ? () {
-                          final all = albums.expand((a) => a.tracks).toList();
+                          final all = albums
+                              .expand((a) => a.tracks)
+                              .take(25)
+                              .toList();
                           _playTracks(
                             all,
                             sourceType: 'ALBUM',
@@ -282,7 +295,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                   AppStrings.downloads(SettingsService().localeCode),
                   onPlayAll: _downloads.isNotEmpty
                       ? () => _playTracks(
-                          _downloads,
+                          _downloads.length > 25
+                              ? _downloads.sublist(0, 25)
+                              : _downloads,
                           sourceType: 'OFFLINE',
                           sourceName: AppStrings.downloads(
                             SettingsService().localeCode,
@@ -290,7 +305,11 @@ class _LibraryScreenState extends State<LibraryScreen>
                         )
                       : null,
                 ),
-                _buildHorizontalDownloadedList(_downloads),
+                _buildHorizontalDownloadedList(
+                  _downloads.length > 25
+                      ? _downloads.sublist(0, 25)
+                      : _downloads,
+                ),
                 const SizedBox(height: 16),
               ],
             ),
@@ -406,9 +425,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                   ? AppStrings.likedSongs(SettingsService().localeCode)
                   : null),
       ),
-      child: Container(
+      child: M3Container.square(
         width: 200,
-        margin: const EdgeInsets.only(right: 12),
+        //margin: const EdgeInsets.only(right: 12),
         child: Card(
           color: cardcolor,
           elevation: 4,
@@ -421,18 +440,29 @@ class _LibraryScreenState extends State<LibraryScreen>
                   padding: const EdgeInsets.all(8.0),
                   child: Stack(
                     children: [
-                      Container(
+                      M3Container.square(
                         width: double.infinity,
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(4),
-                          ),
-                          color: Colors.grey[300],
-                        ),
+                        // decoration: BoxDecoration(
+                        // borderRadius: const BorderRadius.vertical(
+                        //  top: Radius.circular(4),
+                        //),
+                        color: Colors.grey[300],
+
                         child:
                             (t.thumbnailUrl != null &&
                                 t.thumbnailUrl!.isNotEmpty)
                             ? CachedNetworkImage(
+                                placeholder: M3Container.square(
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.music_note,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
                                 imageUrl: t.thumbnailUrl!,
                                 fit: BoxFit.cover,
                                 borderRadius: const BorderRadius.vertical(
@@ -526,7 +556,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             artworkUrl: p.artworkUrl,
             typeLabel: AppStrings.playlistChip(SettingsService().localeCode),
             onTap: () => _playTracks(
-              p.tracks,
+              p.tracks.length > 25 ? p.tracks.sublist(0, 25) : p.tracks,
               sourceType: 'PLAYLIST',
               sourceName: p.title,
             ),
@@ -560,8 +590,11 @@ class _LibraryScreenState extends State<LibraryScreen>
             subtitle: a.artist,
             artworkUrl: a.artworkUrl,
             typeLabel: AppStrings.albumChip(SettingsService().localeCode),
-            onTap: () =>
-                _playTracks(a.tracks, sourceType: 'ALBUM', sourceName: a.title),
+            onTap: () => _playTracks(
+              a.tracks.length > 25 ? a.tracks.sublist(0, 25) : a.tracks,
+              sourceType: 'ALBUM',
+              sourceName: a.title,
+            ),
           );
         },
       ),

@@ -5,6 +5,7 @@ https://creativecommons.org/licenses/by/4.0/
 */
 
 import 'package:dart_ytmusic_api/yt_music.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sautifyv2/models/home/home.dart';
 import 'package:sautifyv2/services/home_service.dart';
 
@@ -20,7 +21,9 @@ class HomeScreenService implements HomeService {
       List<dynamic> rawSections = await ytmusic.getHomeSections();
       _homeData = HomeData.fromYTMusicSections(rawSections);
     } catch (e) {
-      print('Error fetching home sections: $e');
+      if (kDebugMode) {
+        debugPrint('Error fetching home sections: $e');
+      }
       _homeData = null;
     } finally {
       _isLoading = false;
@@ -32,7 +35,9 @@ class HomeScreenService implements HomeService {
     try {
       await ytmusic.initialize();
     } catch (e) {
-      print('Error initializing YTMusic: $e');
+      if (kDebugMode) {
+        debugPrint('Error initializing YTMusic: $e');
+      }
     }
   }
 

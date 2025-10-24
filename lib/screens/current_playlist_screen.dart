@@ -5,6 +5,8 @@ https://creativecommons.org/licenses/by/4.0/
 */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
+import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
@@ -94,19 +96,19 @@ class CurrentPlaylistScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: txtcolor.withAlpha(40), width: 1),
+                  // border: Border.all(color: txtcolor.withAlpha(40), width: 1),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: ListView.separated(
+                child: ListView.builder(
                   padding: EdgeInsets.only(
                     top: 4,
                     bottom: 8 + MediaQuery.of(context).padding.bottom,
                   ),
                   itemCount: playlist.length,
-                  separatorBuilder: (context, index) => Padding(
+                  /*  separatorBuilder: (context, index) => Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Divider(height: 1, color: txtcolor.withAlpha(40)),
-                  ),
+                  ),*/
                   itemBuilder: (context, index) {
                     final track = playlist[index];
                     final isCurrentTrack = index == currentIndex;
@@ -136,15 +138,21 @@ class CurrentPlaylistScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               // Artwork
-                              Container(
-                                width: 48,
+                              M3Container.square(
+                                /*   width: 48,
                                 height: 48,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
                                   color: cardcolor,
-                                ),
+                                ),*/
                                 child: track.thumbnailUrl != null
                                     ? CachedNetworkImage(
+                                        placeholder: M3Container.square(
+                                          color: bgcolor.withAlpha(155),
+                                          child: LoadingIndicatorM3E(
+                                            color: appbarcolor.withAlpha(155),
+                                          ),
+                                        ),
                                         imageUrl: track.thumbnailUrl!,
                                         borderRadius: BorderRadius.circular(10),
                                         fit: BoxFit.cover,

@@ -7,10 +7,12 @@ https://creativecommons.org/licenses/by/4.0/
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:navigation_bar_m3e/navigation_bar_m3e.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
@@ -43,6 +45,10 @@ Future<void> _requestNotificationPermissionIfNeeded() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Workaround: Suppress noisy debug-only MouseTracker assertion during warm-up frames/hot reload
+  // See: https://github.com/flutter/flutter/issues (various reports around mouse_tracker.dart !_debugDuringDeviceUpdate)
+  _installMouseTrackerAssertWorkaround();
 
   // Init Hive early for local storage
   await Hive.initFlutter();
@@ -78,6 +84,29 @@ void main() async {
   runApp(const MainApp());
 }
 
+// Filters a specific, known-to-be-benign debug assertion spam from MouseTracker
+// that can occur around warm-up frames/hot reload. This does not affect release
+// builds and only filters the exact assertion, letting all other errors through.
+void _installMouseTrackerAssertWorkaround() {
+  if (kReleaseMode) return; // Only in debug/profile
+
+  final prev = FlutterError.onError;
+  FlutterError.onError = (FlutterErrorDetails details) {
+    final text = details.exceptionAsString();
+    final isMouseTrackerSpam =
+        text.contains('mouse_tracker.dart') &&
+        text.contains("'!_debugDuringDeviceUpdate': is not true");
+    if (isMouseTrackerSpam) {
+      // Log once per occurrence at a low priority instead of throwing
+      debugPrint(
+        'Suppressed MouseTracker debug assertion during warm-up frame: ${details.exception}',
+      );
+      return;
+    }
+    prev?.call(details);
+  };
+}
+
 class MainApp extends StatefulWidget {
   const MainApp({super.key});
 
@@ -88,6 +117,49 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> {
   int _tab = 0;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
+
+  void _safeToast({
+    required Widget title,
+    Widget? description,
+    ToastificationType type = ToastificationType.info,
+    ToastificationStyle style = ToastificationStyle.fillColored,
+    Duration autoClose = const Duration(seconds: 3),
+    Alignment alignment = Alignment.topCenter,
+    Color? primaryColor,
+    Color? backgroundColor,
+  }) {
+    if (!mounted) return;
+    // If Directionality not yet in tree (early lifecycle), defer until next frame.
+    if (Directionality.maybeOf(context) == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (Directionality.maybeOf(context) == null) return; // still unsafe
+        toastification.show(
+          context: context,
+          title: title,
+          description: description,
+          type: type,
+          style: style,
+          autoCloseDuration: autoClose,
+          alignment: alignment,
+          primaryColor: primaryColor,
+          backgroundColor: backgroundColor,
+        );
+      });
+      return;
+    }
+    toastification.show(
+      context: context,
+      title: title,
+      description: description,
+      type: type,
+      style: style,
+      autoCloseDuration: autoClose,
+      alignment: alignment,
+      primaryColor: primaryColor,
+      backgroundColor: backgroundColor,
+    );
+  }
 
   @override
   void initState() {
@@ -107,15 +179,14 @@ class _MainAppState extends State<MainApp> {
       final isOffline =
           results.isEmpty || results.every((c) => c == ConnectivityResult.none);
       if (isOffline && mounted) {
-        toastification.show(
-          context: context,
+        _safeToast(
           title: const Text('You are offline'),
           description: const Text(
             'Some features may not work without internet',
           ),
           type: ToastificationType.warning,
           style: ToastificationStyle.fillColored,
-          autoCloseDuration: const Duration(seconds: 4),
+          autoClose: const Duration(seconds: 4),
           alignment: Alignment.topCenter,
           primaryColor: Colors.orange,
           backgroundColor: Colors.black87,
@@ -140,13 +211,12 @@ class _MainAppState extends State<MainApp> {
             results.isEmpty ||
             results.every((c) => c == ConnectivityResult.none);
         if (offline) {
-          toastification.show(
-            context: context,
+          _safeToast(
             title: const Text('No internet connection'),
             description: const Text('You are offline'),
             type: ToastificationType.error,
             style: ToastificationStyle.fillColored,
-            autoCloseDuration: const Duration(seconds: 3),
+            autoClose: const Duration(seconds: 3),
             alignment: Alignment.topCenter,
             primaryColor: Colors.redAccent,
             backgroundColor: Colors.black87,
@@ -177,6 +247,10 @@ class _MainAppState extends State<MainApp> {
 
     return MultiProvider(
       providers: [
+        // Expose the singleton audio service to the widget tree
+        ChangeNotifierProvider<AudioPlayerService>.value(
+          value: AudioPlayerService(),
+        ),
         ChangeNotifierProvider<LibraryProvider>(
           create: (_) => LibraryProvider()..init(),
         ),
@@ -190,7 +264,7 @@ class _MainAppState extends State<MainApp> {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               onGenerateTitle: (ctx) => AppLocalizations.of(ctx).appTitle,
-              theme: ThemeData(primaryColorDark: bgcolor),
+              theme: ThemeData(primaryColorDark: bgcolor, useMaterial3: true),
               locale: _toLocale(settings.localeCode),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
@@ -212,11 +286,24 @@ class _MainAppState extends State<MainApp> {
                             highlightColor: Colors.transparent,
                             hoverColor: Colors.transparent,
                           ),
-                          child: BottomNavigationBar(
+                          child: NavigationBarM3E(
+                            padding: EdgeInsets.all(8.0),
+                            labelBehavior: NavBarM3ELabelBehavior.alwaysShow,
+                            indicatorStyle: NavBarM3EIndicatorStyle.pill,
+                            size: NavBarM3ESize.small,
+                            shapeFamily: NavBarM3EShapeFamily.square,
+                            indicatorColor: appbarcolor.withAlpha(100),
+                            backgroundColor: bgcolor,
+
+                            selectedIndex: _tab,
+                            onDestinationSelected: (i) =>
+                                setState(() => _tab = i),
+
+                            /*
                             type: BottomNavigationBarType.fixed,
                             currentIndex: _tab,
                             onTap: (i) => setState(() => _tab = i),
-                            backgroundColor: cardcolor,
+                            backgroundColor: cardcolor.withAlpha(200),
                             selectedItemColor: appbarcolor.withValues(
                               alpha: 50,
                             ),
@@ -229,21 +316,39 @@ class _MainAppState extends State<MainApp> {
                             ),
                             unselectedLabelStyle: TextStyle(
                               color: iconcolor.withValues(alpha: 100),
-                            ),
-                            items: [
-                              BottomNavigationBarItem(
-                                icon: const Icon(Icons.home_rounded),
-                                activeIcon: const Icon(Icons.home),
+                            ),*/
+                            destinations: [
+                              NavigationDestinationM3E(
+                                icon: Icon(
+                                  Icons.home_rounded,
+                                  color: iconcolor,
+                                ),
+                                selectedIcon: Icon(
+                                  Icons.home,
+                                  color: appbarcolor,
+                                ),
                                 label: l10n.homeTitle,
                               ),
-                              BottomNavigationBarItem(
-                                icon: const Icon(Icons.library_music_rounded),
-                                activeIcon: const Icon(Icons.library_music),
+                              NavigationDestinationM3E(
+                                icon: Icon(
+                                  Icons.library_music_rounded,
+                                  color: iconcolor,
+                                ),
+                                selectedIcon: Icon(
+                                  Icons.library_music,
+                                  color: appbarcolor,
+                                ),
                                 label: l10n.libraryTitle,
                               ),
-                              BottomNavigationBarItem(
-                                icon: const Icon(Icons.settings_rounded),
-                                activeIcon: const Icon(Icons.settings),
+                              NavigationDestinationM3E(
+                                icon: Icon(
+                                  Icons.settings_rounded,
+                                  color: iconcolor,
+                                ),
+                                selectedIcon: Icon(
+                                  Icons.settings,
+                                  color: appbarcolor,
+                                ),
                                 label: l10n.settingsTitle,
                               ),
                             ],

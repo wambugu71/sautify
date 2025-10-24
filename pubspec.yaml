@@ -3,10 +3,10 @@ description: "A new Flutter project."
 
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.0+1
+version: 0.0.3+1
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.9.2
 
 dependencies:
   flutter:
@@ -21,25 +21,38 @@ dependencies:
   shared_preferences: ^2.5.3
   http: ^1.5.0
   dio: ^5.6.0
-  dio_smart_retry: ^6.0.0
+  dio_smart_retry: ^7.0.1
   audio_service: ^0.18.18
   audio_session: ^0.2.2
   dart_ytmusic_api: ^1.2.1
-  skeletonizer: ^2.1.0+1
+  skeletonizer: ^2.1.0
   flutter_audio_output: ^0.0.4
+  #youtube_explode_dart_plus: ^1.0.3
   # logger: ^2.6.1
-  youtube_explode_dart: ^2.5.2
-  permission_handler: ^11.3.1
+  youtube_explode_dart:
+    git: https://github.com/Coronon/youtube_explode_dart.git
+  permission_handler: ^12.0.1
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  flutter_native_splash: any
+  flutter_native_splash: ^2.4.6
   #just_audio_media_kit: ^2.1.0
   #just_audio_windows: ^0.2.2
   #just_audio_libwinmedia: ^0.0.4+1
-  palette_generator: ^0.3.3
-  toastification: ^2.2.1
-  connectivity_plus: ^6.0.5
+  # Replaced palette_generator with material_color_utilities for lighter, faster palette extraction
+  material_color_utilities: any
+  toastification: ^3.0.3
+  connectivity_plus: ^7.0.0
   path_provider: ^2.1.5
+  expressive_refresh: ^0.1.2
+  material_new_shapes: ^1.0.0
+  flutter_m3shapes: ^1.0.0+2
+  expressive_loading_indicator: ^0.0.1
+  flutter_animate: ^4.5.2
+  progress_indicator_m3e: ^0.1.0
+  navigation_bar_m3e: ^0.1.0
+  loading_indicator_m3e: ^0.1.0
+  m3e_design: ^0.1.0
+  marquee: ^2.3.0
 
 dependency_overrides:
   intl: 0.20.2
@@ -48,7 +61,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
   icons_launcher: any
 
 flutter:
@@ -59,11 +72,6 @@ flutter:
   # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
-
-  fonts:
-    - family: asimovian
-      fonts:
-        - asset: fonts/Asimovian-Regular.ttf
 
   #   - family: Trajan Pro
   #     fonts:

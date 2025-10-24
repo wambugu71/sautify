@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 /*
 Copyright (c) 2025 Wambugu Kinyua
 Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
@@ -6,15 +8,22 @@ https://creativecommons.org/licenses/by/4.0/
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:dart_ytmusic_api/yt_music.dart';
+import 'package:flutter/foundation.dart'
+    show consolidateHttpClientResponseBytes;
 import 'package:flutter/material.dart';
 // Import for ScrollDirection used in NotificationListener
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_audio_output/flutter_audio_output.dart';
+import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:palette_generator/palette_generator.dart';
+import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
+import 'package:marquee/marquee.dart';
+import 'package:material_color_utilities/material_color_utilities.dart' as mcu;
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/db/library_store.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
@@ -22,6 +31,7 @@ import 'package:sautifyv2/models/track_info.dart';
 import 'package:sautifyv2/screens/current_playlist_screen.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
+import 'package:sautifyv2/widgets/playlist_loading_progress.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String title;
@@ -88,11 +98,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
     super.initState();
     _audioService = AudioPlayerService(); // This gets the singleton instance
 
-    // Only load playlist if provided and audio service doesn't have a playlist
+    // Load playlist/track only if audio service is not already loading something
+    // and doesn't have the expected content
+    final bool serviceHasContent = _audioService.playlist.isNotEmpty;
+    final bool serviceIsPreparing = _audioService.isPreparing.value;
+
     if (widget.playlist != null && widget.playlist!.isNotEmpty) {
-      // Fire and forget; UI will reflect isPreparing/loading states
-      Future.microtask(_loadPlaylist);
-    } else if (widget.videoId != null && _audioService.playlist.isEmpty) {
+      // Only load if service doesn't already have this playlist or isn't preparing it
+      if (!serviceIsPreparing && !serviceHasContent) {
+        Future.microtask(_loadPlaylist);
+      }
+    } else if (widget.videoId != null &&
+        !serviceHasContent &&
+        !serviceIsPreparing) {
       Future.microtask(_loadSingleTrack);
     }
 
@@ -136,9 +154,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _loadPlaylist() async {
     try {
+      final full = widget.playlist!;
+      final idx = widget.initialIndex ?? 0;
+      List<StreamingData> capped;
+      int cappedIdx;
+      if (full.length > 25) {
+        int start = idx - 12;
+        if (start < 0) start = 0;
+        if (start > full.length - 25) start = full.length - 25;
+        capped = full.sublist(start, start + 25);
+        cappedIdx = idx - start;
+      } else {
+        capped = full;
+        cappedIdx = idx;
+      }
       await _audioService.loadPlaylist(
-        widget.playlist!,
-        initialIndex: widget.initialIndex ?? 0,
+        capped,
+        initialIndex: cappedIdx,
         autoPlay: true,
         sourceType: widget.sourceType ?? 'QUEUE',
         sourceName: widget.sourceName,
@@ -330,12 +362,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         const SizedBox(height: 30),
 
                         // Bottom controls
-                        _buildBottomControls(),
+                        _buildBottomControls(currentTitle),
 
                         const SizedBox(height: 20),
                       ],
                     ),
                   ),
+                ),
+
+                // Playlist loading progress overlay
+                Positioned(
+                  top: 80,
+                  left: 0,
+                  right: 0,
+                  child: const PlaylistLoadingProgress(),
                 ),
               ],
             ),
@@ -347,45 +387,97 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _updatePaletteFromArtwork(String url) async {
     try {
-      // Try cached bytes first for efficiency
       final cache = ImageCacheService();
-      final bytes = await cache.getCachedImage(url);
-      final ImageProvider provider = bytes != null
-          ? MemoryImage(bytes)
-          : NetworkImage(url);
+      final bytes =
+          await cache.getCachedImage(url) ?? await _fetchImageBytes(url);
+      if (bytes == null || bytes.isEmpty) return;
 
-      // Defer heavy palette computation slightly to avoid blocking first frame
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      final palette = await PaletteGenerator.fromImageProvider(
-        provider,
-        size: const Size(200, 200),
-        maximumColorCount: 12,
+      // Slight defer to avoid blocking transition to player screen
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      // Decode with codec at a reduced size for speed (downscale to ~128px longest side)
+      final codec = await instantiateImageCodec(
+        bytes,
+        targetHeight: 128,
+        targetWidth: 128,
       );
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final byteData = await image.toByteData(format: ImageByteFormat.rawRgba);
+      if (byteData == null) return;
+      final raw = byteData.buffer.asUint32List();
+      // Convert RGBA -> ARGB (material_color_utilities expects ARGB int format)
+      final pixels = List<int>.generate(raw.length, (i) {
+        final v = raw[i];
+        final r = v & 0xFF;
+        final g = (v >> 8) & 0xFF;
+        final b = (v >> 16) & 0xFF;
+        final a = (v >> 24) & 0xFF;
+        return (a << 24) | (r << 16) | (g << 8) | b;
+      });
 
-      final Color dominant =
-          palette.dominantColor?.color ?? const Color(0xFF222222);
-      final Color secondary =
-          palette.vibrantColor?.color ??
-          palette.darkVibrantColor?.color ??
-          palette.lightMutedColor?.color ??
-          const Color(0xFF111111);
+      // Quantize colors using material_color_utilities (instance call)
+      final quantizerResult = await mcu.QuantizerCelebi().quantize(pixels, 64);
+      final ranked = mcu.Score.score(quantizerResult.colorToCount);
 
-      final newColors = <Color>[
-        dominant.withOpacity(0.85),
-        secondary.withOpacity(0.8),
-        Colors.black,
-      ];
+      // Extract top colors (fallback chain ensures stability)
+      int? primaryArgb = ranked.isNotEmpty ? ranked.first : null;
+      int? secondaryArgb = ranked.length > 1 ? ranked[1] : null;
+
+      Color primary = primaryArgb != null
+          ? Color(primaryArgb).withOpacity(0.85)
+          : const Color(0xFF222222).withOpacity(0.85);
+      Color secondary = secondaryArgb != null
+          ? Color(secondaryArgb).withOpacity(0.8)
+          : const Color(0xFF111111).withOpacity(0.8);
+
+      // Ensure sufficient contrast between first two; if too close, darken second
+      if (_relativeLuminance(primary) - _relativeLuminance(secondary) < 0.07) {
+        secondary = _darken(secondary, 0.2);
+      }
+
+      final newColors = <Color>[primary, secondary, Colors.black];
 
       if (!mounted) return;
-      setState(() {
-        _bgColors = newColors;
-      });
+      setState(() => _bgColors = newColors);
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _bgColors = [bgcolor.withAlpha(200), bgcolor, Colors.black];
-      });
+      setState(
+        () => _bgColors = [bgcolor.withAlpha(200), bgcolor, Colors.black],
+      );
     }
+  }
+
+  // Fetch remote image bytes (fallback if not in cache)
+  Future<Uint8List?> _fetchImageBytes(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      final resp = await req.close();
+      if (resp.statusCode == 200) {
+        final bytes = await consolidateHttpClientResponseBytes(resp);
+        return Uint8List.fromList(bytes);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Simple luminance approximation for contrast heuristic
+  double _relativeLuminance(Color c) {
+    return 0.2126 * c.red / 255 +
+        0.7152 * c.green / 255 +
+        0.0722 * c.blue / 255;
+  }
+
+  Color _darken(Color c, double amount) {
+    final f = (1 - amount).clamp(0.0, 1.0);
+    return Color.fromARGB(
+      c.alpha,
+      (c.red * f).round(),
+      (c.green * f).round(),
+      (c.blue * f).round(),
+    );
   }
 
   Widget _buildTopBar(TrackInfo? info) {
@@ -496,6 +588,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             _buildDefaultAlbumArt(),
                       )
                     : CachedNetworkImage(
+                        placeholder: M3Container.c7SidedCookie(
+                          child: LoadingIndicatorM3E(
+                            containerColor: bgcolor.withAlpha(100),
+                            color: appbarcolor.withAlpha(155),
+                            constraints: BoxConstraints(
+                              maxWidth: 100,
+                              maxHeight: 100,
+                              minWidth: 80,
+                              minHeight: 80,
+                            ),
+                            polygons: [
+                              MaterialShapes.sunny,
+                              MaterialShapes.cookie9Sided,
+                              MaterialShapes.pill,
+                            ],
+                          ),
+                        ),
                         imageUrl: imageUrl,
                         borderRadius: BorderRadius.circular(12),
                         fit: BoxFit.cover,
@@ -536,15 +645,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: txtcolor,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 90,
+                height: 30,
+                child: Marquee(
+                  // rtl: true,
+                  text: title,
+                  startAfter: Duration(seconds: 20),
+                  pauseAfterRound: Duration(seconds: 30),
+                  style: TextStyle(
+                    color: txtcolor,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  // maxLines: 2,
+                  //   overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
               Text(
@@ -589,7 +705,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (mounted) setState(() => isLiked = fav);
           },
           icon: Icon(
-            isLiked ? Icons.favorite : Icons.favorite_border,
+            isLiked ? Icons.favorite : Icons.favorite_border_rounded,
             color: isLiked ? Colors.red : iconcolor,
             size: 28,
           ),
@@ -670,52 +786,49 @@ class _PlayerScreenState extends State<PlayerScreen> {
           icon: Icon(Icons.skip_previous, color: iconcolor, size: 32),
         ),
         // Play/Pause button
-        Container(
-          decoration: BoxDecoration(color: txtcolor, shape: BoxShape.circle),
-          child: ValueListenableBuilder<bool>(
-            valueListenable: _audioService.isPreparing,
-            builder: (context, preparing, _) {
-              return StreamBuilder<PlayerState>(
-                stream: _audioService.playerStateStream,
-                builder: (context, snapshot) {
-                  final playerState = snapshot.data;
-                  // Prefer engine state for 'playing' for immediacy; fallback to info
-                  final effectivePlaying =
-                      playerState?.playing ?? (info?.isPlaying ?? false);
-                  final processing = playerState?.processingState;
-                  final engineLoading =
-                      processing == ProcessingState.loading ||
-                      processing == ProcessingState.buffering;
-                  // Show loading only when NOT playing and either preparing or engine is loading
-                  final isLoading =
-                      (!effectivePlaying) && (preparing || engineLoading);
+        ValueListenableBuilder<bool>(
+          valueListenable: _audioService.isPreparing,
+          builder: (context, preparing, _) {
+            return StreamBuilder<PlayerState>(
+              stream: _audioService.playerStateStream,
+              builder: (context, snapshot) {
+                final playerState = snapshot.data;
+                // Prefer engine state for 'playing' for immediacy; fallback to info
+                final effectivePlaying =
+                    playerState?.playing ?? (info?.isPlaying ?? false);
+                final processing = playerState?.processingState;
+                final engineLoading =
+                    processing == ProcessingState.loading ||
+                    processing == ProcessingState.buffering;
+                // Show loading only when NOT playing and either preparing or engine is loading
+                final isLoading =
+                    (!effectivePlaying) && (preparing || engineLoading);
 
-                  return IconButton(
-                    onPressed: isLoading ? null : _togglePlayPause,
-                    icon: isLoading
-                        ? SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: Padding(
-                              padding: const EdgeInsets.all(6.0),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  bgcolor,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Icon(
-                            effectivePlaying ? Icons.pause : Icons.play_arrow,
-                            color: bgcolor,
-                            size: 32,
+                return IconButton(
+                  onPressed: isLoading ? null : _togglePlayPause,
+                  icon: isLoading
+                      ? SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: LoadingIndicatorM3E(
+                            containerColor: bgcolor.withAlpha(100),
+                            color: appbarcolor.withAlpha(155),
+                            polygons: [
+                              MaterialShapes.sunny,
+                              MaterialShapes.cookie9Sided,
+                              MaterialShapes.pill,
+                            ],
                           ),
-                  );
-                },
-              );
-            },
-          ),
+                        )
+                      : Icon(
+                          effectivePlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                );
+              },
+            );
+          },
         ),
         // Next button
         IconButton(
@@ -742,7 +855,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  Widget _buildBottomControls() {
+  Widget _buildBottomControls(String title) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -774,14 +887,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),*/
         Row(
           children: [
-            Icon(Icons.headphones, color: appbarcolor, size: 16),
+            //Icon(Icons.headphones, color: appbarcolor, size: 16),
             const SizedBox(width: 8),
-            Text(
-              '${_currentOutput?.name ?? 'Unknown'} Playing...',
-              style: TextStyle(
-                color: appbarcolor,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            SizedBox(
+              width: 200,
+              height: 16,
+              child: Marquee(
+                text: ' Sautify Playing $title.',
+                startAfter: Duration(seconds: 3),
+                pauseAfterRound: Duration(seconds: 2),
+                //  curve: Curves.linear,
+                style: TextStyle(
+                  color: appbarcolor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -1017,9 +1137,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
               const SizedBox(height: 8),
               Expanded(
                 child: _lyricsLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color.fromARGB(255, 31, 184, 85),
+                    ? Center(
+                        child: LoadingIndicatorM3E(
+                          containerColor: bgcolor.withAlpha(100),
+                          color: appbarcolor.withAlpha(155),
+                          polygons: [
+                            MaterialShapes.sunny,
+                            MaterialShapes.cookie9Sided,
+                            MaterialShapes.pill,
+                            MaterialShapes.arrow,
+                            MaterialShapes.cookie7Sided,
+                            MaterialShapes.boom,
+                          ],
                         ),
                       )
                     : (_lyricsError != null
