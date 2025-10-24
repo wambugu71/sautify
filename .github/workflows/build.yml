@@ -46,6 +46,11 @@ jobs:
 
       - name: ✅ Run tests
         run: ls #flutter test --coverage
+      - name: "Generate icons"
+        run: dart run icons_launcher:create
+
+      - name: "Generate  Splash screen"
+        run: dart run flutter_native_splash:create
 
       - name: 🏗️ Build APKs
         run: flutter build apk --release --split-per-abi
