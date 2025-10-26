@@ -477,6 +477,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                   tracks,
                                   initialIndex: 0,
                                   autoPlay: true,
+                                  withTransition: true,
                                   sourceType: 'ALBUM',
                                   sourceName: album.title,
                                 );
@@ -930,6 +931,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                 capped,
                 initialIndex: cappedIndex,
                 autoPlay: true,
+                withTransition: true,
                 sourceType: 'SEARCH',
                 sourceName: Provider.of<SearchProvider>(
                   context,

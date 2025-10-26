@@ -493,6 +493,7 @@ class AudioPlayerService extends ChangeNotifier {
     bool autoPlay = true,
     String? sourceName,
     String sourceType = 'QUEUE',
+    bool withTransition = false,
   }) async {
     await replacePlaylist(
       tracks,
@@ -500,6 +501,7 @@ class AudioPlayerService extends ChangeNotifier {
       autoPlay: autoPlay,
       sourceName: sourceName,
       sourceType: sourceType,
+      withTransition: withTransition,
       force: true,
     );
   }
@@ -521,6 +523,7 @@ class AudioPlayerService extends ChangeNotifier {
     bool autoPlay = true,
     String? sourceName,
     String sourceType = 'QUEUE',
+    bool withTransition = false,
     bool force = false,
   }) async {
     // Enforce global max queue size of 25, keeping the selected track inside the window
@@ -547,6 +550,15 @@ class AudioPlayerService extends ChangeNotifier {
         await jumpToIndex(cappedInitialIndex);
       }
       return false;
+    }
+    // If we are actually replacing with a different queue and caller requests
+    // a smooth transition, pause first so old audio stops immediately.
+    if (withTransition) {
+      try {
+        await _player.pause();
+        // tiny delay to let UI/state settle
+        await Future.delayed(const Duration(milliseconds: 40));
+      } catch (_) {}
     }
     _playlistFingerprint = newFp;
 
@@ -649,6 +661,12 @@ class AudioPlayerService extends ChangeNotifier {
               await _player.play();
             } else {
               await seek(Duration.zero, index: _currentIndex);
+              if (withTransition) {
+                // ensure playback kicks in once prepared
+                try {
+                  await _player.play();
+                } catch (_) {}
+              }
             }
           }
 
