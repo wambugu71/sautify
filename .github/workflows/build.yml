@@ -3,7 +3,7 @@ name: 🛠 Android CI / Build & Release APK
 on:
   push:
     branches: [updatev0.0.3]
-    tags: ["v*.*.*"]
+    tags: ["v*"]
   pull_request:
     branches: [updatev0.0.3]
 
