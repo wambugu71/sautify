@@ -141,7 +141,9 @@ class AudioPlayerService extends ChangeNotifier {
         }
       }
     });
-    _playlistWorkerSendPort = await c.future;
+    _playlistWorkerSendPort = await c.future.timeout(
+      const Duration(seconds: 5),
+    );
   }
 
   final Map<int, Completer<Map<String, dynamic>>> _pendingWorkerRequests = {};

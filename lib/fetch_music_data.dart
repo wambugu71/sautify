@@ -467,7 +467,7 @@ class MusicStreamingService {
       final results = await Future.wait([
         videoFuture,
         manifestFuture,
-      ], eagerError: false);
+      ], eagerError: false).timeout(const Duration(seconds: 15));
       final video = results[0] as Video;
       final manifest = results[1] as StreamManifest;
 
