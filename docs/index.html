@@ -1,252 +1,106 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sautify — Free, open‑source music app (Android)</title>
-    <meta name="description"
-        content="Sautify is a fast, lightweight and free music app. Stream smarter, listen freer. No ads. Open‑source. Download for Android (ARM64 or ARMv7a)." />
-    <meta name="keywords"
-        content="Sautify, Android, music, streaming, audio player, open source, no ads, Spotify alternative, YouTube Music alternative" />
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="icon" type="image/png"
-        href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/assets/icons/icon.png" />
-
-    <!-- Open Graph / Twitter -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Sautify — Free, open‑source music app (Android)" />
-    <meta property="og:description"
-        content="Stream smarter. Listen freer. Download Sautify for Android (ARM64 or ARMv7a)." />
-    <meta property="og:image"
-        content="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/assets/icons/icon.png" />
-    <meta property="og:url" content="https://wambugu71.github.io/sautify/" />
-    <meta name="twitter:card" content="summary" />
-
-    <!-- Structured data -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Sautify",
-        "operatingSystem": "Android",
-        "applicationCategory": "MultimediaApplication",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "author": {"@type": "Person", "name": "wambugu71"},
-        "publisher": {"@type": "Organization", "name": "Sautify"},
-        "description": "Sautify is a fast, lightweight and free music app. Stream smarter, listen freer. No ads. Open‑source.",
-        "image": "https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/assets/icons/icon.png",
-        "downloadUrl": [
-          "https://github.com/wambugu71/sautify/releases/download/v1.0.0/Sautify_arm64.apk",
-          "https://github.com/wambugu71/sautify/releases/download/v1.0.0/sautify_armv7.apk"
-        ]
-      }
-    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sautify - Experience Music Like Never Before</title>
+    <link rel="icon" type="image/png" href="assets/icons/icon.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 
 <body>
-    <header class="site-header">
-        <div class="container header-inner">
-            <a class="brand" href="#top">
-                <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/assets/icons/icon.png"
-                    alt="Sautify icon" width="40" height="40" />
-                <span>Sautify</span>
-            </a>
-            <nav class="nav">
-                <a href="#download">Download</a>
-                <a href="#features">Features</a>
-                <a href="#screenshots">Screenshots</a>
-                <a href="#faq">FAQ</a>
-            </nav>
+    <header>
+        <div class="logo">
+            <img src="assets/icons/icon.png" alt="Sautify Logo"
+                style="height: 40px; vertical-align: middle; margin-right: 10px; display: inline-block;">
+            Sautify
         </div>
+        <nav>
+            <ul>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#showcase">Showcase</a></li>
+                <li><a href="#download" class="cta-button download-btn">Download</a></li>
+            </ul>
+        </nav>
     </header>
 
-    <main id="top">
-        <section class="hero">
-            <div class="container hero-inner">
-                <div class="hero-copy">
-                    <h1>Stream smarter. Listen freer.</h1>
-                    <p>
-                        Sautify is a fast, lightweight music app designed to get you from search to sound with zero
-                        friction. Clean & minimal design, instant play, and a beautiful player that adapts to your
-                        music—so you spend less time tapping and more time listening.
-                    </p>
-                    <div class="cta" id="download">
-                        <a class="btn primary"
-                            href="https://github.com/wambugu71/sautify/releases/download/v1.0.0/Sautify_arm64.apk">Download
-                            ARM64 (64‑bit)</a>
-                        <a class="btn"
-                            href="https://github.com/wambugu71/sautify/releases/download/v1.0.0/sautify_armv7.apk">Download
-                            ARMv7a (32‑bit)</a>
-                    </div>
-                    <p class="helper">
-                        Which APK? Most modern phones use ARM64. If install fails, try ARMv7a. <a
-                            href="https://github.com/wambugu71/sautify/releases" target="_blank" rel="noreferrer">View
-                            all releases</a>.
-                    </p>
-                    <div id="arch-hint" class="hint" role="status" aria-live="polite"></div>
-                </div>
-                <div class="hero-art">
-                    <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/1.jpg"
-                        alt="Sautify player screenshot" loading="lazy" />
-                </div>
-            </div>
-        </section>
-
-        <section class="section" id="features">
-            <div class="container">
-                <h2>Why Sautify</h2>
-                <ul class="feature-list">
-                    <li>⚡ Speed first: From launch to play, everything feels instant.</li>
-                    <li>🎯 Simple by design: No clutter. The actions you need, where you expect them.</li>
-                    <li>🎵 You’re in control: Play tracks, albums, or playlists—with a smart queue.</li>
-                    <li>🖼️ Looks as good as it sounds: Player backgrounds match your album art.</li>
-                    <li>📱 Light and reliable: Small footprint, responsive UI, smooth playback.</li>
-                </ul>
-            </div>
-        </section>
-
-        <section class="section alt" id="capabilities">
-            <div class="container">
-                <h2>What you can do</h2>
-                <ul class="capabilities">
-                    <li>
-                        <strong>Search and play instantly.</strong>
-                        Find tracks and start listening right away—no deep menus, no fuss.
-                    </li>
-                    <li>
-                        <strong>Explore playlists and albums.</strong>
-                        Open a playlist or album and hit play, or jump straight to the song you want.
-                    </li>
-                    <li>
-                        <strong>Build your Library.</strong>
-                        Save playlists and albums you love. Come back to favorites quickly.
-                    </li>
-                    <li>
-                        <strong>Recently Played & Favorites.</strong>
-                        Your go‑to tracks are always just a tap away.
-                    </li>
-                    <li>
-                        <strong>Beautiful Player.</strong>
-                        Enjoy a clean player screen.
-                    </li>
-                </ul>
-            </div>
-        </section>
-
-        <section class="section" id="screenshots">
-            <div class="container">
-                <h2>Screenshots</h2>
-                <div class="screenshot-grid">
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/0.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/0.jpg"
-                            alt="Sautify screenshot 0" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/1.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/1.jpg"
-                            alt="Sautify screenshot 1" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/2.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/2.jpg"
-                            alt="Sautify screenshot 2" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/3.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/3.jpg"
-                            alt="Sautify screenshot 3" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/4.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/4.jpg"
-                            alt="Sautify screenshot 4" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/5.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/5.jpg"
-                            alt="Sautify screenshot 5" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/6.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/6.jpg"
-                            alt="Sautify screenshot 6" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/7.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/7.jpg"
-                            alt="Sautify screenshot 7" loading="lazy" />
-                    </a>
-                    <a href="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/8.jpg"
-                        target="_blank" rel="noreferrer">
-                        <img src="https://raw.githubusercontent.com/wambugu71/sautify/main-patch1/screenshots/8.jpg"
-                            alt="Sautify screenshot 8" loading="lazy" />
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <section class="section alt" id="faq">
-            <div class="container">
-                <h2>Install & FAQ</h2>
-                <details open>
-                    <summary>How do I install the APK?</summary>
-                    <ol>
-                        <li>Download the APK to your Android device.</li>
-                        <li>Open the APK and allow “Install unknown apps” if prompted.</li>
-                        <li>Tap Install and launch Sautify.</li>
-                    </ol>
-                </details>
-                <details>
-                    <summary>Which APK do I need?</summary>
-                    <p>
-                        Most modern devices support <strong>ARM64 (64‑bit)</strong>. If the installer says the package
-                        isn’t compatible, install <strong>ARMv7a (32‑bit)</strong> instead. ARMv7a runs virtually on all
-                        devices.
-                    </p>
-                </details>
-                <details>
-                    <summary>Privacy</summary>
-                    <p>
-                        Sautify avoids unnecessary data collection. No login or account is required. Your preferences
-                        stay on your device; clearing app data resets them.
-                    </p>
-                </details>
-                <details>
-                    <summary>Known issues</summary>
-                    <ul>
-                        <li>Lyrics may be unavailable, unsynced, or incorrect at times.</li>
-                        <li>Slow networks can delay loading music or lyrics.</li>
-                    </ul>
-                </details>
-                <p class="repo-links">
-                    Need help or have feedback? <a href="https://github.com/wambugu71/sautify/issues" target="_blank"
-                        rel="noreferrer">Open an issue</a> · <a href="https://github.com/wambugu71/sautify"
-                        target="_blank" rel="noreferrer">View source</a>
-                </p>
-            </div>
-        </section>
-    </main>
-
-    <footer class="site-footer">
-        <div class="container footer-inner">
-            <div>
-                <strong>Sautify</strong> — Free, open‑source, no ads.
-            </div>
-            <nav>
-                <a href="https://github.com/wambugu71/sautify" target="_blank" rel="noreferrer">Repository</a>
-                <a href="https://github.com/wambugu71/sautify/releases" target="_blank" rel="noreferrer">Releases</a>
-                <a href="#top">Back to top</a>
-            </nav>
+    <section class="hero">
+        <div class="hero-bg-glow"></div>
+        <div class="hero-content fade-in">
+            <h1>Music Without Limits</h1>
+            <p>Stream your favorite tracks ad-free, in high quality, and with background play. The ultimate music
+                experience is here.</p>
+            <a href="#download" class="cta-button download-btn">Get Started</a>
         </div>
+        <div class="hero-image fade-in">
+            <!-- Using 1.jpg as it likely shows the home screen based on file size/name inference -->
+            <img src="assets/images/1.jpg" alt="Sautify App Interface">
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <h2 class="fade-in">Why Sautify?</h2>
+        <div class="features-grid">
+            <div class="feature-card fade-in">
+                <i class="fas fa-ban feature-icon"></i>
+                <h3>Ad-Free Experience</h3>
+                <p>Enjoy uninterrupted music streaming without any annoying ads.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <i class="fas fa-layer-group feature-icon"></i>
+                <h3>Background Play</h3>
+                <p>Keep the music playing while you use other apps or turn off your screen.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <i class="fas fa-sliders-h feature-icon"></i>
+                <h3>High Quality Audio</h3>
+                <p>Immerse yourself in crystal clear sound with high-fidelity streaming.</p>
+            </div>
+            <div class="feature-card fade-in">
+                <i class="fas fa-download feature-icon"></i>
+                <h3>Offline Mode</h3>
+                <p>Download your favorite tracks and playlists to listen anywhere, anytime.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="showcase" class="showcase">
+        <h2 class="fade-in">App Showcase</h2>
+        <div class="gallery-container fade-in">
+            <div class="gallery" id="gallery">
+                <div class="gallery-item"><img src="assets/images/0.jpg" alt="Screenshot 1"></div>
+                <div class="gallery-item"><img src="assets/images/2.jpg" alt="Screenshot 2"></div>
+                <div class="gallery-item"><img src="assets/images/3.jpg" alt="Screenshot 3"></div>
+                <div class="gallery-item"><img src="assets/images/4.jpg" alt="Screenshot 4"></div>
+                <div class="gallery-item"><img src="assets/images/5.jpg" alt="Screenshot 5"></div>
+                <div class="gallery-item"><img src="assets/images/6.jpg" alt="Screenshot 6"></div>
+                <div class="gallery-item"><img src="assets/images/7.jpg" alt="Screenshot 7"></div>
+                <div class="gallery-item"><img src="assets/images/8.jpg" alt="Screenshot 8"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="download">
+        <div class="download-content fade-in">
+            <h2>Ready to Tune In?</h2>
+            <p>Download Sautify today and elevate your music listening experience.</p>
+            <div id="download-buttons" class="download-buttons">
+                <!-- Buttons will be injected here by JS -->
+                <a href="#" class="cta-button download-btn">Loading Releases...</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2024 Sautify. All rights reserved.</p>
     </footer>
 
-    <script src="./script.js"></script>
+    <script src="script.js"></script>
 </body>
 
 </html>
