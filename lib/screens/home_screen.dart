@@ -114,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
           title: const Text(
             'S A U T I F Y',
             style: TextStyle(
-              fontFamily: 'RobotoMono',
+              // fontFamily: 'RobotoMono',
               fontWeight: FontWeight.bold,
               fontSize: 24,
               letterSpacing: 4,

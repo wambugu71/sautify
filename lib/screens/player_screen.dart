@@ -670,8 +670,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: Marquee(
                   // rtl: true,
                   text: title,
-                  startAfter: Duration(seconds: 20),
-                  pauseAfterRound: Duration(seconds: 30),
+                  startAfter: Duration(seconds: 10),
+                  pauseAfterRound: Duration(seconds: 5),
                   style: TextStyle(
                     color: txtcolor,
                     fontSize: 24,

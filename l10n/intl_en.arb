@@ -9,6 +9,10 @@
   "songsCount": "{count, plural, one {# song} other {# songs}}",
   "downloaded": "Downloaded",
   "offline": "Offline",
+  "downloadsTitle": "Downloads",
+  "noSongsFound": "No songs found",
+  "grantPermission": "Grant Permission",
+  "permissionDenied": "Permission denied",
   "error": "Error",
   "retry": "Retry"
 }

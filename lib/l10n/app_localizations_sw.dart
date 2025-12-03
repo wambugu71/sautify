@@ -44,6 +44,18 @@ class AppLocalizationsSw extends AppLocalizations {
   String get offline => 'Nje ya mtandao';
 
   @override
+  String get downloadsTitle => 'Vipakuliwa';
+
+  @override
+  String get noSongsFound => 'Hakuna nyimbo zilizopatikana';
+
+  @override
+  String get grantPermission => 'Ruhusu';
+
+  @override
+  String get permissionDenied => 'Ruhusa imekataliwa';
+
+  @override
   String get error => 'Hitilafu';
 
   @override

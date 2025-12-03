@@ -17,10 +17,6 @@ dependencies:
   cupertino_icons: any
   just_audio_background: any
   just_audio: any
-  just_audio_media_kit: any
-  media_kit_libs_android_audio: any
-  # Add Windows native audio libs so MediaKit backend can work on Windows dev builds
-  media_kit_libs_windows_audio: any
   provider: any
   shared_preferences: any
   http: any
@@ -30,11 +26,14 @@ dependencies:
   audio_session: any
   dart_ytmusic_api: any
   skeletonizer: any
+  mini_music_visualizer: any
   # flutter_audio_output: ^0.0.4
   #youtube_explode_dart_plus: ^1.0.3
   # logger: ^2.6.1
   youtube_explode_dart: any
   permission_handler: any
+  on_audio_query: any
+  file_picker: any
   hive: any
   hive_flutter: any
   flutter_native_splash: any
@@ -58,7 +57,8 @@ dependencies:
   m3e_design: any
   marquee: any
   rxdart: any
-  just_audio_cache: ^0.1.2
+  just_audio_cache: any
+  google_fonts: ^6.3.3
 
 dependency_overrides:
   intl: 0.20.2

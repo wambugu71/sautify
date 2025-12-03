@@ -44,6 +44,18 @@ class AppLocalizationsAm extends AppLocalizations {
   String get offline => 'ውስጥ';
 
   @override
+  String get downloadsTitle => 'ወረዶች';
+
+  @override
+  String get noSongsFound => 'ምንም ዘፈኖች አልተገኙም';
+
+  @override
+  String get grantPermission => 'ፍቃድ ይስጡ';
+
+  @override
+  String get permissionDenied => 'ፍቃድ ተከልክሏል';
+
+  @override
   String get error => 'ስህተት';
 
   @override

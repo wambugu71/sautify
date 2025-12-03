@@ -25,7 +25,6 @@ class SettingsService extends ChangeNotifier {
   static const _kDefaultSpeed = 'default_playback_speed';
   static const _kDefaultShuffle = 'default_shuffle';
   static const _kDefaultLoopMode = 'default_loop_mode'; // off | one | all
-  static const _kAudioBackend = 'audio_backend'; // system | mediakit
   // New keys
   static const _kDefaultVolume = 'default_volume'; // 0.0 - 1.0
   static const _kPreferredQuality = 'preferred_quality'; // low | medium | high
@@ -50,7 +49,6 @@ class SettingsService extends ChangeNotifier {
   double defaultVolume = 1.0; // 0.0 - 1.0
   String preferredQuality = 'medium'; // low | medium | high
   String localeCode = 'en'; // default English
-  String audioBackend = 'system'; // system | mediakit
   String downloadPath =
       '/storage/emulated/0/Music'; // Default Android Music folder
   // Search-related defaults (OFF as requested)
@@ -78,7 +76,6 @@ class SettingsService extends ChangeNotifier {
     // New loads
     defaultVolume = _prefs.getDouble(_kDefaultVolume) ?? defaultVolume;
     preferredQuality = _prefs.getString(_kPreferredQuality) ?? preferredQuality;
-    audioBackend = _prefs.getString(_kAudioBackend) ?? audioBackend;
     downloadPath = _prefs.getString(_kDownloadPath) ?? downloadPath;
     // Prefer Hive for locale (requested), fallback to SharedPreferences
     final hiveLocale = _box?.get(_kLocaleCode) as String?;
@@ -89,8 +86,7 @@ class SettingsService extends ChangeNotifier {
     showSearchSuggestions =
         (_box?.get(_kShowSearchSuggestions) as bool?) ?? showSearchSuggestions;
     // Load equalizer settings
-    equalizerEnabled =
-        (_prefs.getBool(_kEqualizerEnabled) ?? equalizerEnabled);
+    equalizerEnabled = (_prefs.getBool(_kEqualizerEnabled) ?? equalizerEnabled);
     final loadedBands = _prefs.getString(_kEqualizerBands);
     if (loadedBands != null) {
       try {
@@ -172,13 +168,6 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setAudioBackend(String value) async {
-    if (!['system', 'mediakit'].contains(value)) return;
-    audioBackend = value;
-    await _prefs.setString(_kAudioBackend, audioBackend);
-    notifyListeners();
-  }
-
   Future<void> setLocaleCode(String code) async {
     localeCode = code;
     // Write to Hive as source-of-truth, keep SharedPreferences for compatibility
@@ -234,7 +223,6 @@ class SettingsService extends ChangeNotifier {
     defaultVolume = 1.0;
     preferredQuality = 'medium';
     localeCode = 'en';
-    audioBackend = 'system';
     showRecentSearches = false;
     showSearchSuggestions = false;
     equalizerEnabled = false;
@@ -249,7 +237,6 @@ class SettingsService extends ChangeNotifier {
     await _prefs.setString(_kDefaultLoopMode, defaultLoopMode);
     await _prefs.setDouble(_kDefaultVolume, defaultVolume);
     await _prefs.setString(_kPreferredQuality, preferredQuality);
-    await _prefs.setString(_kAudioBackend, audioBackend);
     await _box?.put(_kLocaleCode, localeCode);
     await _box?.put(_kShowRecentSearches, showRecentSearches);
     await _box?.put(_kShowSearchSuggestions, showSearchSuggestions);

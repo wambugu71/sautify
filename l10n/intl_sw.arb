@@ -9,6 +9,10 @@
   "songsCount": "{count, plural, one {# wimbo} other {# nyimbo}}",
   "downloaded": "Imepakuliwa",
   "offline": "Nje ya mtandao",
+  "downloadsTitle": "Vipakuliwa",
+  "noSongsFound": "Hakuna nyimbo zilizopatikana",
+  "grantPermission": "Ruhusu",
+  "permissionDenied": "Ruhusa imekataliwa",
   "error": "Hitilafu",
   "retry": "Jaribu tena"
 }

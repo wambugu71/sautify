@@ -11,9 +11,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navigation_bar_m3e/navigation_bar_m3e.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +26,7 @@ import 'package:sautifyv2/widgets/mini_player.dart';
 // Legacy lightweight i18n helper is still used in other screens; not needed here
 // import 'l10n/strings.dart';
 import 'providers/library_provider.dart';
+import 'screens/downloads_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/settings_screen.dart';
@@ -93,21 +94,6 @@ void main() async {
   final settings = SettingsService();
   if (!settings.isReady) {
     await settings.init();
-  }
-  if (settings.audioBackend == 'mediakit' && !AppConfig.isTest) {
-    // Initialize MediaKit.
-    // Note: On Android, this uses a bundled MPV build which increases APK size
-    // and might behave differently than ExoPlayer.
-    JustAudioMediaKit.ensureInitialized(
-      windows:
-          false, // default: true  - dependency: media_kit_libs_windows_audio
-      linux: false, // default: true  - dependency: media_kit_libs_linux_audio
-      android: true,
-    );
-    JustAudioMediaKit.prefetchPlaylist = true;
-    JustAudioMediaKit.pitch = true;
-    JustAudioMediaKit.pitch = true;
-    //JustAudioMediaKit.mpvLogLevel = MPVLogLevel.debug;
   }
 
   // Initialize the AudioPlayerService singleton
@@ -254,6 +240,7 @@ class _MainAppState extends State<MainApp> {
     final pages = [
       const HomeScreen(),
       const LibraryScreen(),
+      const DownloadsScreen(),
       const SettingsScreen(),
     ];
 
@@ -278,6 +265,11 @@ class _MainAppState extends State<MainApp> {
             theme: ThemeData(
               primaryColorDark: bgcolor,
               useMaterial3: true,
+              textTheme: GoogleFonts.poppinsTextTheme(
+                Theme.of(
+                  context,
+                ).textTheme.apply(bodyColor: txtcolor, displayColor: txtcolor),
+              ),
               snackBarTheme: SnackBarThemeData(
                 backgroundColor: appbarcolor,
                 elevation: 8.0,
@@ -362,6 +354,17 @@ class _MainAppState extends State<MainApp> {
                                 color: appbarcolor,
                               ),
                               label: l10n.libraryTitle,
+                            ),
+                            NavigationDestinationM3E(
+                              icon: Icon(
+                                Icons.download_rounded,
+                                color: iconcolor,
+                              ),
+                              selectedIcon: Icon(
+                                Icons.download,
+                                color: appbarcolor,
+                              ),
+                              label: l10n.downloadsTitle,
                             ),
                             NavigationDestinationM3E(
                               icon: Icon(

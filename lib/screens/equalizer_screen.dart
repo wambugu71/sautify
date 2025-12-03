@@ -33,12 +33,6 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
       return;
     }
 
-    // If using MediaKit, equalizer is not supported
-    if (_settings.audioBackend == 'mediakit') {
-      setState(() => _isLoading = false);
-      return;
-    }
-
     try {
       _parameters = await _audioService.equalizer.parameters;
       _isEnabled = _settings.equalizerEnabled;
@@ -94,17 +88,6 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
                 containerColor: appbarcolor.withAlpha(100),
                 variant: LoadingIndicatorM3EVariant.contained,
                 color: appbarcolor,
-              ),
-            )
-          : _settings.audioBackend == 'mediakit'
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'Equalizer is not available when using MediaKit backend.\nPlease switch to System backend in Settings.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white),
-                ),
               ),
             )
           : _parameters == null

@@ -9,6 +9,10 @@
   "songsCount": "{count, plural, one {# song} other {# songs}}",
   "downloaded": "ይዘው ወደ ውስጥ ይገኛሉ",
   "offline": "ውስጥ",
+  "downloadsTitle": "ወረዶች",
+  "noSongsFound": "ምንም ዘፈኖች አልተገኙም",
+  "grantPermission": "ፍቃድ ይስጡ",
+  "permissionDenied": "ፍቃድ ተከልክሏል",
   "error": "ስህተት",
   "retry": "ይሞክሩ"
 }

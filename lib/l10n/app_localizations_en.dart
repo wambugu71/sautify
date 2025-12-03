@@ -44,6 +44,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get offline => 'Offline';
 
   @override
+  String get downloadsTitle => 'Downloads';
+
+  @override
+  String get noSongsFound => 'No songs found';
+
+  @override
+  String get grantPermission => 'Grant Permission';
+
+  @override
+  String get permissionDenied => 'Permission denied';
+
+  @override
   String get error => 'Error';
 
   @override

@@ -32,16 +32,11 @@ class AudioPlayerService extends ChangeNotifier {
   late final AudioPlayer _player;
 
   AudioPlayerService._internal() {
-    final settings = SettingsService();
-    // Only use AudioPipeline (and Equalizer) if NOT using MediaKit backend
-    if (settings.audioBackend != 'mediakit') {
-      _player = AudioPlayer(
-        audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
-      );
-      _applyEqualizerSettings();
-    } else {
-      _player = AudioPlayer();
-    }
+    // Always use AudioPipeline (and Equalizer) since MediaKit is removed
+    _player = AudioPlayer(
+      audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
+    );
+    _applyEqualizerSettings();
   }
 
   Future<void> _applyEqualizerSettings() async {
@@ -49,8 +44,6 @@ class AudioPlayerService extends ChangeNotifier {
     if (!settings.isReady) {
       await settings.init();
     }
-    // Skip if using MediaKit
-    if (settings.audioBackend == 'mediakit') return;
 
     try {
       await _equalizer.setEnabled(settings.equalizerEnabled);
@@ -535,8 +528,6 @@ class AudioPlayerService extends ChangeNotifier {
 
     // Note: We intentionally avoid calling setAndroidAudioAttributes.
     // Audio focus and attributes are handled via audio_session configuration above.
-    // Calling setAndroidAudioAttributes may throw UnimplementedError when using
-    // the just_audio_media_kit backend or on some platforms.
 
     // Emit initial current track
     _currentTrackController.add(currentTrack);
@@ -1038,22 +1029,6 @@ class AudioPlayerService extends ChangeNotifier {
         debugPrint('setAudioSource unsupported on current backend: $e\n$st');
       }
       // Auto fallback: switch backend to system & notify user via debug log.
-      final settings = SettingsService();
-      if (settings.audioBackend == 'mediakit') {
-        await settings.setAudioBackend('system');
-        // Retry once with system backend (player instance remains valid)
-        try {
-          await _player.setAudioSource(
-            ConcatenatingAudioSource(
-              children: children,
-              useLazyPreparation: true,
-              shuffleOrder: DefaultShuffleOrder(),
-            ),
-            initialIndex: initChildIndex,
-            initialPosition: Duration.zero,
-          );
-        } catch (_) {}
-      }
     }
     if (wasShuffled) await _player.setShuffleModeEnabled(true);
     if (autoPlay) await _player.play();
@@ -1622,11 +1597,7 @@ class AudioPlayerService extends ChangeNotifier {
 
             // Use LockCachingAudioSource for remote streams if not using MediaKit
             // MediaKit backend might not support the proxy URL, so we skip cache for it.
-            final settings = SettingsService();
-            final useCache =
-                !t.isLocal &&
-                settings.audioBackend != 'mediakit' &&
-                uri.scheme.startsWith('http');
+            final useCache = !t.isLocal && uri.scheme.startsWith('http');
 
             if (useCache) {
               children.add(
@@ -1665,11 +1636,7 @@ class AudioPlayerService extends ChangeNotifier {
             extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
           );
 
-          final settings = SettingsService();
-          final useCache =
-              !t.isLocal &&
-              settings.audioBackend != 'mediakit' &&
-              uri.scheme.startsWith('http');
+          final useCache = !t.isLocal && uri.scheme.startsWith('http');
 
           if (useCache) {
             children.add(
@@ -1767,22 +1734,6 @@ class AudioPlayerService extends ChangeNotifier {
         debugPrint(
           'setAudioSources unsupported on current backend (rebuild): $e\n$st',
         );
-      }
-      final settings = SettingsService();
-      if (settings.audioBackend == 'mediakit') {
-        await settings.setAudioBackend('system');
-        // Retry once with system backend
-        try {
-          await _player.setAudioSource(
-            ConcatenatingAudioSource(
-              children: children,
-              useLazyPreparation: true,
-              shuffleOrder: DefaultShuffleOrder(),
-            ),
-            initialIndex: newChildIndex.clamp(0, children.length - 1),
-            initialPosition: keepPosition ? prevPosition : Duration.zero,
-          );
-        } catch (_) {}
       }
     } on PlayerException catch (e) {
       // Auto-recovery: attempt to refresh the failing track's URL and retry once
@@ -1931,11 +1882,7 @@ class AudioPlayerService extends ChangeNotifier {
         extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
       );
 
-      final settings = SettingsService();
-      final useCache =
-          !t.isLocal &&
-          settings.audioBackend != 'mediakit' &&
-          uri.scheme.startsWith('http');
+      final useCache = !t.isLocal && uri.scheme.startsWith('http');
 
       AudioSource source;
       if (useCache) {
@@ -1963,33 +1910,6 @@ class AudioPlayerService extends ChangeNotifier {
         debugPrint(
           'setAudioSource unsupported on current backend (minimal single): $e\n$st',
         );
-      }
-      final settings = SettingsService();
-      if (settings.audioBackend == 'mediakit') {
-        await settings.setAudioBackend('system');
-        // Retry once with system backend
-        try {
-          final tag = MediaItem(
-            id: t.videoId,
-            title: t.title,
-            artist: t.artist,
-            duration: t.duration,
-            artUri: t.thumbnailUrl != null
-                ? Uri.tryParse(t.thumbnailUrl!)
-                : null,
-            extras: {'videoId': t.videoId, 'isLocal': t.isLocal},
-          );
-          // Fallback to no cache for retry simplicity
-          await _player.setAudioSource(
-            ConcatenatingAudioSource(
-              children: [AudioSource.uri(uri, tag: tag, headers: _headers)],
-              useLazyPreparation: true,
-              shuffleOrder: DefaultShuffleOrder(),
-            ),
-            initialIndex: 0,
-            initialPosition: Duration.zero,
-          );
-        } catch (_) {}
       }
     }
     if (autoPlay) {

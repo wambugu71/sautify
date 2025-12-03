@@ -7,6 +7,7 @@ https://creativecommons.org/licenses/by/4.0/
 import 'package:flutter/material.dart';
 import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
+import 'package:mini_music_visualizer/mini_music_visualizer.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
@@ -273,17 +274,11 @@ class _CurrentPlaylistScreenState extends State<CurrentPlaylistScreen> {
 
                               // Trailing: now-playing indicator + index
                               if (isCurrentTrack)
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: appbarcolor.withAlpha(20),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  child: Icon(
-                                    Icons.volume_up,
-                                    color: appbarcolor,
-                                    size: 16,
-                                  ),
+                                MiniMusicVisualizer(
+                                  color: appbarcolor.withAlpha(250),
+                                  width: 4,
+                                  height: 15,
+                                  animate: true,
                                 ),
                               if (isCurrentTrack) const SizedBox(width: 8),
                               Text(
