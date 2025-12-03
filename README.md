@@ -1,6 +1,7 @@
 # Sautify
 
 Stream smarter. Listen freer.
+__Remember__:  `to support` [![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/wambugu) or [![PayPal](https://img.shields.io/badge/Pay%20Now-FFD140?logo=paypal&logoColor=000&style=for-the-badge)](https://www.paypal.com/ncp/payment/664ZL5XX3TKMG), .
 
 Sautify "`Sauti`: A swahili word meaning  sound/voice" is a fast, lightweight music app designed to get you from search to sound with zero friction. Clean & minimal design, instant play, and a beautiful player that adapts to your music—so you spend less time tapping and more time listening.
 
