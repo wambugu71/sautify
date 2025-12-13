@@ -35,7 +35,7 @@ class Contents {
         vid = null;
       } else {
         // Common shapes seen in dart_ytmusic_api results
-        vid = content.videoId ?? content.id?.value ?? content.id ?? null;
+        vid = content.videoId ?? content.id?.value ?? content.id;
       }
     } catch (_) {
       vid = null;

@@ -41,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ValueNotifier<Set<String>> _downloading = ValueNotifier<Set<String>>(
     {},
   );
+
   Box<String>? _downloadsBox;
   // Simple tap throttle timestamp to prevent rapid double taps,surprisingly it works
   DateTime _lastActionAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -139,11 +140,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       weight: 800,
                     ),
                     onPressed: () {
-                      showModalBottomSheet(
+                      /*   showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (context) => const SearchOverlayScreen(),
+                      );*/
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const SearchOverlayScreen(),
+                        ),
                       );
                     },
                   ),
@@ -221,9 +227,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 minWidth: MediaQuery.of(context).size.width * 0.15,
               ),
               //     backgroundColor: appbarcolor.withAlpha(200),
-              elevation: 3,
-              color: appbarcolor.withAlpha(255),
-              backgroundColor: cardcolor.withAlpha(155),
+              elevation: 1,
+              color: appbarcolor.withAlpha(200),
+              backgroundColor: cardcolor.withAlpha(100),
               onRefresh: () => homeNotifier.refresh(),
               child: Skeletonizer(
                 enabled:
@@ -236,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   duration: const Duration(milliseconds: 800),
                 ),
                 child: ListView.builder(
+                  //controller: _scrollController,
                   padding: const EdgeInsets.only(
                     bottom: 100,
                   ), // Space for global mini player
@@ -285,8 +292,8 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text(text),
         behavior: SnackBarBehavior.floating,
         backgroundColor: isFallback
-            ? Colors.orange.withOpacity(0.9)
-            : appbarcolor.withOpacity(0.9),
+            ? Colors.orange.withAlpha((255 * 0.9).toInt())
+            : appbarcolor.withAlpha((255 * 0.9).toInt()),
         action: SnackBarAction(
           label: 'Retry',
           onPressed: () =>
@@ -393,12 +400,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                 content,
                                 showDownloadControls: false,
                                 onTap: () {
-                                  showModalBottomSheet(
+                                  /*   showModalBottomSheet(
                                     context: context,
                                     isScrollControlled: true,
                                     backgroundColor: Colors.transparent,
                                     builder: (context) => PlaylistOverlayScreen(
                                       playlistContent: content,
+                                    ),
+                                  );
+                                  */
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          PlaylistOverlayScreen(
+                                            playlistContent: content,
+                                          ),
                                     ),
                                   );
                                 },
@@ -447,8 +464,9 @@ class _HomeScreenState extends State<HomeScreen> {
             content.videoId != null &&
             content.videoId!.isNotEmpty &&
             (_downloadsBox?.containsKey(content.videoId) ?? false);
-        return M3Container.square(
+        return Container(
           width: 200,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
           // margin: const EdgeInsets.only(right: 12),
           child: Material(
             color: cardcolor,
@@ -479,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               top: Radius.circular(10),
                             ),
                             child: content.thumbnailUrl.isNotEmpty
-                                ? M3Container.pill(
+                                ? M3Container.c9SidedCookie(
                                     child: CachedNetworkImage(
                                       imageUrl: content.thumbnailUrl,
                                       placeholder: M3Container.c7SidedCookie(
@@ -522,7 +540,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.85),
+                                color: Colors.green.withAlpha(
+                                  (255 * 0.85).toInt(),
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -614,24 +634,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const SizedBox(width: 4),
-                            M3Container.c7SidedCookie(
-                              color: Colors.green[100],
-                              child: Padding(
-                                padding: const EdgeInsets.all(4.0),
-                                child: Text(
-                                  content.type,
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: Colors.green[700],
-                                    fontWeight: FontWeight.w500,
+                        Center(
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 4),
+                              M3Container.c7SidedCookie(
+                                color: Colors.green[100],
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: Text(
+                                    content.type,
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

@@ -747,14 +747,17 @@ class AudioPlayerService extends ChangeNotifier {
         // Prioritize current track and a few neighbors for faster first play
         final critical = <int>{_currentIndex};
         if (_currentIndex - 1 >= 0) critical.add(_currentIndex - 1);
-        if (_currentIndex + 1 < _playlist.length)
+        if (_currentIndex + 1 < _playlist.length) {
           critical.add(_currentIndex + 1);
-        if (_currentIndex + 2 < _playlist.length)
+        }
+        if (_currentIndex + 2 < _playlist.length) {
           critical.add(_currentIndex + 2);
+        }
 
         Future<void> resolveIndex(int idx) async {
-          if (_playlist[idx].isReady && _playlist[idx].streamUrl != null)
+          if (_playlist[idx].isReady && _playlist[idx].streamUrl != null) {
             return;
+          }
           final r = await _streamingService.fetchStreamingData(
             _playlist[idx].videoId,
             quality,
@@ -1936,16 +1939,18 @@ class AudioPlayerService extends ChangeNotifier {
     // Simplified: rebuild full source to include newly ready track
     if (playlistIndex < 0 || playlistIndex >= _playlist.length) return;
     if (!(_playlist[playlistIndex].isReady &&
-        _playlist[playlistIndex].streamUrl != null))
+        _playlist[playlistIndex].streamUrl != null)) {
       return;
+    }
     await _rebuildAudioSource(preservePosition: true);
     _materializedIndices.add(playlistIndex);
   }
 
   void _handleWorkerMessage(Map<String, dynamic> message) {
     final type = message['type'];
-    if (type != 'progress' && type != 'done')
+    if (type != 'progress' && type != 'done') {
       return; // only handle progressive events
+    }
     // Guard against superseded loads
     final reqId = message['requestId'] as int?;
     if (reqId == null || reqId != _currentProgressiveWorkerReqId) return;

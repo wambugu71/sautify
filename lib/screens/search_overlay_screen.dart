@@ -284,7 +284,9 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                     cursorColor: appbarcolor,
                     decoration: InputDecoration(
                       hintText: 'Search songs, artists, albums',
-                      hintStyle: TextStyle(color: txtcolor.withOpacity(0.7)),
+                      hintStyle: TextStyle(
+                        color: txtcolor.withAlpha((255 * 0.7).toInt()),
+                      ),
                       prefixIcon: Icon(Icons.search, color: iconcolor),
                       suffixIcon: provider.isLoading
                           ? Padding(
@@ -481,22 +483,27 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: provider.albumResults.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final album = provider.albumResults[index];
                     return ValueListenableBuilder<String?>(
                       valueListenable: _loadingAlbumId,
-                      builder: (context, loadingId, __) {
+                      builder: (context, loadingId, _) {
                         final isLoadingThis = loadingId == album.albumId;
                         return AbsorbPointer(
                           absorbing: isLoadingThis,
                           child: GestureDetector(
                             onTap: () async {
                               if (_loadingAlbumId.value != null ||
-                                  audioService.isPreparing.value)
+                                  audioService.isPreparing.value) {
                                 return;
+                              }
                               _loadingAlbumId.value = album.albumId;
                               try {
+                                /*  final tracksFull = await Isolate.run(
+                                  () =>
+                                      provider.fetchAlbumTracks(album.albumId),
+                                );*/
                                 final tracksFull = await provider
                                     .fetchAlbumTracks(album.albumId);
                                 final tracks = tracksFull.length > 25
@@ -572,12 +579,13 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                 }
                               }
                             },
-                            child: M3Container.square(
+                            child: Container(
                               width: 120,
-                              // decoration: BoxDecoration(
-                              color: cardcolor,
-                              // borderRadius: BorderRadius.circular(12),
-                              //),
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: cardcolor,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
                               child: Padding(
                                 padding: const EdgeInsets.all(8.0),
                                 child: Column(
@@ -626,7 +634,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                 top: 6,
                                                 right: 6,
                                                 child: Consumer<LibraryProvider>(
-                                                  builder: (context, lib, __) {
+                                                  builder: (context, lib, _) {
                                                     final isSaved = lib
                                                         .getAlbums()
                                                         .any(
@@ -658,8 +666,9 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                                     album
                                                                         .albumId,
                                                                   );
-                                                          if (tracks.isEmpty)
+                                                          if (tracks.isEmpty) {
                                                             return;
+                                                          }
                                                           final saved = SavedAlbum(
                                                             id: album.albumId,
                                                             title: album.title,
@@ -819,10 +828,18 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
           enabled: isLoading,
           effect: ShimmerEffect(
             baseColor: cardcolor,
-            highlightColor: cardcolor.withOpacity(0.6),
+            highlightColor: cardcolor.withAlpha((255 * 0.6).toInt()),
             duration: const Duration(milliseconds: 1000),
           ),
+          //searched songs in list form
           child: ListView.builder(
+            /* 
+            separatorBuilder: (context, index) => SizedBox(
+              height: 4,
+              width: 300,
+              child: Center(child: Divider(color: txtcolor.withAlpha(80))),
+            ),
+            */
             itemCount: isLoading ? 10 : provider.results.length,
             itemBuilder: (context, index) {
               if (isLoading) {
@@ -831,7 +848,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
               final track = provider.results[index];
               return ValueListenableBuilder<bool>(
                 valueListenable: _busy,
-                builder: (context, busy, __) {
+                builder: (context, busy, _) {
                   return Opacity(
                     opacity: busy ? 0.6 : 1,
                     child: AbsorbPointer(
@@ -865,61 +882,11 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: cardcolor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: bgcolor,
-          ),
-          child: track.thumbnailUrl != null && track.thumbnailUrl!.isNotEmpty
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    placeholder: M3Container.square(
-                      child: LoadingIndicatorM3E(
-                        containerColor: appbarcolor.withAlpha(100),
-                        color: appbarcolor.withAlpha(155),
-                      ),
-                    ),
-                    imageUrl: track.thumbnailUrl!,
-                    fit: BoxFit.cover,
-                    width: 60,
-                    height: 60,
-                  ),
-                )
-              : Icon(Icons.music_note, color: iconcolor.withOpacity(0.6)),
-        ),
-        title: Text(
-          track.title,
-          style: TextStyle(
-            color: txtcolor,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              track.artist,
-              style: TextStyle(color: txtcolor.withOpacity(0.7), fontSize: 14),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _formatDuration(track.duration ?? Duration.zero),
-              style: TextStyle(color: txtcolor.withOpacity(0.5), fontSize: 12),
-            ),
-          ],
-        ),
-        trailing: ValueListenableBuilder<bool>(
+      /*
+
+      ValueListenableBuilder<bool>(
           valueListenable: _busy,
           builder: (context, busy, __) {
             final isDisabled = busy;
@@ -994,7 +961,125 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
           }
 
           if (mounted) _busy.value = false;
+        },  
+      */
+      child: GestureDetector(
+        onTap: () async {
+          if (_busy.value) return;
+          _busy.value = true;
+
+          final mutablePlaylist = List<StreamingData>.from(list);
+          Future.microtask(() async {
+            try {
+              await audioService.stop();
+              // Cap queue around the selected index to max 25
+              List<StreamingData> capped;
+              int cappedIndex;
+              if (mutablePlaylist.length > 25) {
+                int start = index - 12;
+                if (start < 0) start = 0;
+                if (start > mutablePlaylist.length - 25) {
+                  start = mutablePlaylist.length - 25;
+                }
+                capped = mutablePlaylist.sublist(start, start + 25);
+                cappedIndex = index - start;
+              } else {
+                capped = mutablePlaylist;
+                cappedIndex = index;
+              }
+              await audioService.loadPlaylist(
+                capped,
+                initialIndex: cappedIndex,
+                autoPlay: true,
+                withTransition: true,
+                sourceType: 'SEARCH',
+                sourceName: Provider.of<SearchProvider>(
+                  // ignore: use_build_context_synchronously
+                  context,
+                  listen: false,
+                ).query,
+              );
+            } catch (e) {
+              debugPrint('Background load failed: $e');
+            }
+          });
+
+          if (track.thumbnailUrl != null && track.thumbnailUrl!.isNotEmpty) {
+            try {
+              await ImageCacheService().preloadImage(track.thumbnailUrl!);
+            } catch (_) {}
+          }
+
+          if (context.mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => PlayerScreen(
+                  title: track.title,
+                  artist: track.artist,
+                  imageUrl: track.thumbnailUrl,
+                  duration: track.duration,
+                ),
+              ),
+            );
+          }
+
+          if (mounted) _busy.value = false;
         },
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(12),
+          leading: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: bgcolor,
+            ),
+            child: track.thumbnailUrl != null && track.thumbnailUrl!.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      placeholder: M3Container.square(
+                        child: LoadingIndicatorM3E(
+                          containerColor: appbarcolor.withAlpha(100),
+                          color: appbarcolor.withAlpha(155),
+                        ),
+                      ),
+                      imageUrl: track.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      width: 60,
+                      height: 60,
+                    ),
+                  )
+                : Icon(
+                    Icons.music_note,
+                    color: iconcolor.withAlpha((255 * 0.6).toInt()),
+                  ),
+          ),
+          title: Text(
+            track.title,
+            style: TextStyle(
+              color: txtcolor,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            track.artist,
+            style: TextStyle(
+              color: txtcolor.withAlpha((255 * 0.7).toInt()),
+              fontSize: 12,
+            ),
+          ),
+          trailing: Text(
+            _formatDuration(track.duration ?? Duration.zero),
+            style: TextStyle(
+              color: txtcolor.withAlpha((255 * 0.5).toInt()),
+              fontSize: 12,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1013,13 +1098,13 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
           height: 60,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: cardcolor.withOpacity(0.7),
+            color: cardcolor.withAlpha((255 * 0.7).toInt()),
           ),
         ),
         title: Container(
           height: 16,
           decoration: BoxDecoration(
-            color: cardcolor.withOpacity(0.7),
+            color: cardcolor.withAlpha((255 * 0.7).toInt()),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -1031,7 +1116,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
               height: 12,
               width: 100,
               decoration: BoxDecoration(
-                color: cardcolor.withOpacity(0.5),
+                color: cardcolor.withAlpha((255 * 0.5).toInt()),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -1040,13 +1125,16 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
               height: 10,
               width: 60,
               decoration: BoxDecoration(
-                color: cardcolor.withOpacity(0.5),
+                color: cardcolor.withAlpha((255 * 0.5).toInt()),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
           ],
         ),
-        trailing: Icon(Icons.play_arrow, color: cardcolor.withOpacity(0.7)),
+        trailing: Icon(
+          Icons.play_arrow,
+          color: cardcolor.withAlpha((255 * 0.7).toInt()),
+        ),
       ),
     );
   }

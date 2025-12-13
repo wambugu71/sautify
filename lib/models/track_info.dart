@@ -130,6 +130,6 @@ class TrackInfo {
 
   @override
   String toString() {
-    return 'TrackInfo(title: $title, artist: $artist, index: $currentIndex/$totalTracks, playing: $isPlaying, progress: ${progressPercentage}, source: ${sourceType}:${sourceName ?? ''})';
+    return 'TrackInfo(title: $title, artist: $artist, index: $currentIndex/$totalTracks, playing: $isPlaying, progress: $progressPercentage, source: $sourceType:${sourceName ?? ''})';
   }
 }

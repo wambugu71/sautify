@@ -9,8 +9,10 @@ import 'package:flutter_m3shapes/flutter_m3shapes.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
 import 'package:progress_indicator_m3e/progress_indicator_m3e.dart';
+import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/models/track_info.dart';
+import 'package:sautifyv2/providers/set_dynamic_colors.dart';
 import 'package:sautifyv2/screens/player_screen.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
@@ -25,6 +27,7 @@ class MiniPlayer extends StatefulWidget {
 
 class _MiniPlayerState extends State<MiniPlayer> {
   bool _initialReady = false; // becomes true when first track metadata is ready
+  String? _lastProcessedUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +71,27 @@ class _MiniPlayerState extends State<MiniPlayer> {
             final currentTrack = trackInfo!.track!;
             final progress = trackInfo.progress;
 
+            if (currentTrack.thumbnailUrl != _lastProcessedUrl) {
+              _lastProcessedUrl = currentTrack.thumbnailUrl;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  if (currentTrack.thumbnailUrl != null &&
+                      currentTrack.thumbnailUrl!.isNotEmpty) {
+                    context.read<SetColors>().getColor(
+                      currentTrack.thumbnailUrl!,
+                    );
+                  } else {
+                    context.read<SetColors>().setColors([
+                      bgcolor.withAlpha(200),
+                      bgcolor,
+                      Colors.black,
+                    ]);
+                  }
+                }
+              });
+            }
+
+            final pryColors = context.watch<SetColors>().getPrimaryColors;
             return GestureDetector(
               onTap: () {
                 Navigator.of(context).push(
@@ -85,16 +109,24 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 color: bgcolor.withAlpha(155),
                 elevation: 11,
                 child: Container(
-                  height: 80,
+                  height: 60,
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: appbarcolor.withAlpha(
-                      10,
-                    ), // Use player background color
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: pryColors.isNotEmpty
+                          ? pryColors
+                          : [bgcolor.withAlpha(200), bgcolor.withAlpha(150)],
+                      begin: Alignment.center,
+                      end: Alignment.bottomCenter,
+                      //  tileMode: TileMode.mirror,
+                    ),
+                    //  color: appbarcolor.withAlpha(
+                    //    10,
+                    // ), // Use player background color
+                    borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
-                        color: appbarcolor.withAlpha(10),
+                        color: bgcolor.withAlpha(100),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -105,15 +137,15 @@ class _MiniPlayerState extends State<MiniPlayer> {
                       //(value: 0.6),
                       // Progress bar - now uses the synchronized progress from trackInfo
                       Container(
-                        height: 3,
-                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        height: 2,
+                        margin: const EdgeInsets.only(left: 16, right: 16),
                         child: LinearProgressIndicatorM3E(
                           inset: 0,
                           shape: ProgressM3EShape.flat,
                           size: LinearProgressM3ESize.s,
                           value: progress,
                           trackColor: iconcolor,
-                          activeColor: appbarcolor.withAlpha(255),
+                          activeColor: appbarcolor,
                         ),
                       ),
 
@@ -194,7 +226,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               ),
 
                               // Previous button
-                              Container(
+                              /*        Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(100),
                                   color: appbarcolor.withAlpha(155),
@@ -210,8 +242,21 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   ),
                                   visualDensity: VisualDensity.compact,
                                 ),
-                              ),
+                                ),*/
 
+                              //repositioned  next  button only
+                              IconButton(
+                                onPressed: () async {
+                                  await audioService.skipToNext();
+                                },
+                                icon: Icon(
+                                  Icons.skip_next,
+                                  color: txtcolor,
+                                  size: 28,
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const SizedBox(width: 8),
                               // Play/Pause button with loading state (only when NOT playing AND preparing/loading)
                               ValueListenableBuilder<bool>(
                                 valueListenable: audioService.isPreparing,
@@ -249,26 +294,29 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                         );
                                       }
 
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            100,
-                                          ),
-                                          color: appbarcolor.withAlpha(155),
+                                      return IconButton(
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: txtcolor,
+
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(32, 32),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        child: IconButton(
-                                          onPressed: () async {
-                                            if (effectivePlaying) {
-                                              await audioService.pause();
-                                            } else {
-                                              await audioService.play();
-                                            }
-                                          },
-                                          icon: Icon(
+                                        onPressed: () async {
+                                          if (effectivePlaying) {
+                                            await audioService.pause();
+                                          } else {
+                                            await audioService.play();
+                                          }
+                                        },
+                                        icon: Padding(
+                                          padding: const EdgeInsets.all(4.0),
+                                          child: Icon(
                                             effectivePlaying
                                                 ? Icons.pause
                                                 : Icons.play_arrow,
-                                            color: txtcolor,
+                                            color: bgcolor,
                                             size: 28,
                                           ),
                                         ),
@@ -279,7 +327,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               ),
 
                               // Next button
-                              Container(
+                              /*    Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(100),
                                   color: appbarcolor.withAlpha(155),
@@ -295,7 +343,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                   ),
                                   visualDensity: VisualDensity.compact,
                                 ),
-                              ),
+                              ),*/
                             ],
                           ),
                         ),

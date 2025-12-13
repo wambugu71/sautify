@@ -285,7 +285,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   Switch(
                     value: settings.offlineMode,
                     onChanged: (v) => settings.setOfflineMode(v),
-                    activeColor: appbarcolor,
+                    activeThumbColor: appbarcolor,
                   ),
                 ],
               );

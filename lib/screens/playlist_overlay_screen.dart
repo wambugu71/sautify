@@ -161,7 +161,7 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.keyboard_arrow_down, color: iconcolor, size: 32),
           ),
-          Expanded(
+          /*    Expanded(
             child: Text(
               'Playlist',
               style: TextStyle(
@@ -171,7 +171,7 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
               ),
               textAlign: TextAlign.center,
             ),
-          ),
+          ),*/
           SizedBox(width: 48), // Balance the close button
         ],
       ),
@@ -183,12 +183,13 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
     final playlistId = widget.playlistContent.playlistId ?? '';
     return Container(
       padding: const EdgeInsets.all(16.0),
-      child: Row(
+      //  height: MediaQuery.of(context).size.height * 0.4,
+      child: Column(
         children: [
           // Playlist thumbnail
-          M3Container.c6SidedCookie(
-            width: 120,
-            height: 120,
+          M3Container.square(
+            width: 150,
+            height: 150,
 
             child: widget.playlistContent.thumbnailUrl.isNotEmpty
                 ? ClipRRect(
@@ -210,236 +211,263 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
                   ),
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(height: 16),
 
           // Playlist details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.playlistContent.name,
-                  style: TextStyle(
-                    color: txtcolor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          Column(
+            // crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.playlistContent.name,
+                style: TextStyle(
+                  color: txtcolor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.playlistContent.artistName,
-                  style: TextStyle(
-                    color: txtcolor.withOpacity(0.7),
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: appbarcolor.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    widget.playlistContent.type.toUpperCase(),
-                    style: TextStyle(
-                      color: appbarcolor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Play + Save
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    shrinkWrap: true,
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.7,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    spacing: 10,
                     children: [
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _busy,
-                        builder: (context, busy, __) {
-                          final disabled =
-                              !hasTracks || busy || _audio.isPreparing.value;
-                          return ElevatedButton.icon(
-                            onPressed: disabled
-                                ? null
-                                : () async {
-                                    if (busy || _audio.isPreparing.value)
-                                      return;
-                                    _busy.value = true;
-                                    try {
-                                      final playlistFull = provider.videos
-                                          .map(
-                                            (v) => StreamingData(
-                                              videoId: v.id.value,
-                                              title: v.title,
-                                              artist: v.author,
-                                              thumbnailUrl:
-                                                  v.thumbnails.highResUrl,
-                                              duration: v.duration,
-                                            ),
-                                          )
-                                          .toList();
-                                      final playlist = playlistFull.length > 25
-                                          ? playlistFull.sublist(0, 25)
-                                          : playlistFull;
-                                      // Use new fingerprint-aware replacePlaylist
-                                      await _audio.replacePlaylist(
-                                        playlist,
-                                        initialIndex: 0,
-                                        autoPlay: true,
-                                        sourceType: 'PLAYLIST',
-                                        sourceName: widget.playlistContent.name,
-                                      );
-                                      if (mounted) {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) => PlayerScreen(
-                                              title: playlist.first.title,
-                                              artist: playlist.first.artist,
-                                              imageUrl:
-                                                  playlist.first.thumbnailUrl,
-                                              duration: playlist.first.duration,
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    } finally {
-                                      if (mounted) _busy.value = false;
-                                    }
-                                  },
-                            icon: disabled
-                                ? const SizedBox.shrink()
-                                : const Icon(Icons.play_arrow),
-                            label: disabled
-                                ? SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: ExpressiveLoadingIndicator(
-                                      constraints: BoxConstraints(
-                                        maxWidth: 30,
-                                        maxHeight: 30,
-                                        minHeight: 15,
-                                        minWidth: 15,
-                                      ),
-                                      color: appbarcolor.withAlpha(200),
-                                    ),
-                                  )
-                                : const Text('Play'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: appbarcolor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                            ),
-                          );
-                        },
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.4,
+                        child: Text(
+                          widget.playlistContent.artistName,
+                          style: TextStyle(
+                            color: txtcolor.withAlpha((255 * 0.7).toInt()),
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(width: 2),
-                      Consumer<LibraryProvider>(
-                        builder: (context, lib, _) {
-                          final isSaved =
-                              playlistId.isNotEmpty &&
-                              lib.getPlaylists().any((p) => p.id == playlistId);
-                          return OutlinedButton.icon(
-                            onPressed: (!hasTracks || playlistId.isEmpty)
-                                ? null
-                                : () async {
-                                    if (isSaved) {
-                                      await lib.deletePlaylist(playlistId);
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Removed from Library',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    } else {
-                                      final tracksFull = provider.videos
-                                          .map(
-                                            (v) => StreamingData(
-                                              videoId: v.id.value,
-                                              title: v.title,
-                                              artist: v.author,
-                                              thumbnailUrl:
-                                                  v.thumbnails.highResUrl,
-                                              duration: v.duration,
-                                            ),
-                                          )
-                                          .toList();
-                                      final tracks = tracksFull.length > 25
-                                          ? tracksFull.sublist(0, 25)
-                                          : tracksFull;
-                                      final saved = SavedPlaylist(
-                                        id: playlistId,
-                                        title: widget.playlistContent.name,
-                                        artworkUrl:
-                                            widget.playlistContent.thumbnailUrl,
-                                        tracks: tracks,
-                                      );
-                                      await lib.savePlaylist(saved);
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Saved to Library'),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                            icon: Icon(
-                              isSaved ? Icons.favorite : Icons.favorite_border,
-                              color: isSaved ? Colors.red : appbarcolor,
-                            ),
-                            label: Text(isSaved ? 'Saved' : 'Save'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isSaved
-                                  ? Colors.red
-                                  : appbarcolor,
-                              side: BorderSide(color: appbarcolor),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                            ),
-                          );
-                        },
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: appbarcolor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          widget.playlistContent.type.toUpperCase(),
+                          style: TextStyle(
+                            color: appbarcolor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      // Removed Download All button
                     ],
                   ),
                 ),
-                // Removed download progress section
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+
+              // Play + Save
+              SizedBox(
+                height: 40,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Consumer<LibraryProvider>(
+                          builder: (context, lib, _) {
+                            final isSaved =
+                                playlistId.isNotEmpty &&
+                                lib.getPlaylists().any(
+                                  (p) => p.id == playlistId,
+                                );
+                            return IconButton(
+                              onPressed: (!hasTracks || playlistId.isEmpty)
+                                  ? null
+                                  : () async {
+                                      if (isSaved) {
+                                        await lib.deletePlaylist(playlistId);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Removed from Library',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        final tracksFull = provider.videos
+                                            .map(
+                                              (v) => StreamingData(
+                                                videoId: v.id.value,
+                                                title: v.title,
+                                                artist: v.author,
+                                                thumbnailUrl:
+                                                    v.thumbnails.highResUrl,
+                                                duration: v.duration,
+                                              ),
+                                            )
+                                            .toList();
+                                        final tracks = tracksFull.length > 25
+                                            ? tracksFull.sublist(0, 25)
+                                            : tracksFull;
+                                        final saved = SavedPlaylist(
+                                          id: playlistId,
+                                          title: widget.playlistContent.name,
+                                          artworkUrl: widget
+                                              .playlistContent
+                                              .thumbnailUrl,
+                                          tracks: tracks,
+                                        );
+                                        await lib.savePlaylist(saved);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Saved to Library'),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(
+                                isSaved
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isSaved ? Colors.red : appbarcolor,
+                              ),
+                              // label: Text(isSaved ? 'Saved' : 'Save'),
+                              /*  style: OutlinedButton.styleFrom(
+                                foregroundColor: isSaved ? Colors.red : appbarcolor,
+                                side: BorderSide(color: appbarcolor),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),*/
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 2),
+                        IconButton(
+                          onPressed: () {},
+                          icon: Icon(
+                            Icons.download_for_offline,
+                            color: appbarcolor,
+                          ),
+                        ),
+                        // Removed Download All button
+                        //shuffle button
+                        IconButton(
+                          onPressed: () {},
+                          icon: Icon(Icons.shuffle, color: appbarcolor),
+                        ),
+                      ],
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _busy,
+                      builder: (context, busy, __) {
+                        final disabled =
+                            !hasTracks || busy || _audio.isPreparing.value;
+                        return IconButton(
+                          onPressed: disabled
+                              ? null
+                              : () async {
+                                  if (busy || _audio.isPreparing.value) return;
+                                  _busy.value = true;
+                                  try {
+                                    final playlistFull = provider.videos
+                                        .map(
+                                          (v) => StreamingData(
+                                            videoId: v.id.value,
+                                            title: v.title,
+                                            artist: v.author,
+                                            thumbnailUrl:
+                                                v.thumbnails.highResUrl,
+                                            duration: v.duration,
+                                          ),
+                                        )
+                                        .toList();
+                                    final playlist = playlistFull.length > 25
+                                        ? playlistFull.sublist(0, 25)
+                                        : playlistFull;
+                                    // Use new fingerprint-aware replacePlaylist
+                                    await _audio.replacePlaylist(
+                                      playlist,
+                                      initialIndex: 0,
+                                      autoPlay: true,
+                                      sourceType: 'PLAYLIST',
+                                      sourceName: widget.playlistContent.name,
+                                    );
+                                    if (mounted) {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => PlayerScreen(
+                                            title: playlist.first.title,
+                                            artist: playlist.first.artist,
+                                            imageUrl:
+                                                playlist.first.thumbnailUrl,
+                                            duration: playlist.first.duration,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) _busy.value = false;
+                                  }
+                                },
+                          icon: disabled
+                              ? const SizedBox.shrink()
+                              : Icon(Icons.play_arrow, color: iconcolor),
+                          /*  label: disabled
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: ExpressiveLoadingIndicator(
+                                    constraints: BoxConstraints(
+                                      maxWidth: 30,
+                                      maxHeight: 30,
+                                      minHeight: 15,
+                                      minWidth: 15,
+                                    ),
+                                    color: appbarcolor.withAlpha(200),
+                                  ),
+                                )
+                              : const Text('Play'),
+                              */
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: appbarcolor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.all(8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              // Removed download progress section
+            ],
           ),
         ],
       ),
@@ -524,7 +552,7 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
-              color: cardcolor.withOpacity(disabled ? 0.6 : 1.0),
+              color: bgcolor.withAlpha(50),
               borderRadius: BorderRadius.vertical(
                 top: trackNumber == 0
                     ? const Radius.circular(33)
@@ -534,256 +562,423 @@ class _PlaylistOverlayScreenState extends State<PlaylistOverlayScreen> {
                     : const Radius.circular(6),
               ),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              leading: SizedBox(
-                width: 56,
-                height: 56,
-                child: M3Container.c7SidedCookie(
-                  width: 56,
-                  height: 56,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child:
-                            (track.thumbnailUrl != null &&
-                                track.thumbnailUrl!.isNotEmpty)
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: CachedNetworkImage(
-                                  imageUrl: track.thumbnailUrl!,
-                                  placeholder: M3Container.c7SidedCookie(
-                                    color: bgcolor.withAlpha(50),
-                                    child: ExpressiveLoadingIndicator(
-                                      color: appbarcolor.withAlpha(155),
-                                      constraints: BoxConstraints(
-                                        maxHeight: 100,
-                                        maxWidth: 100,
-                                        minHeight: 50,
-                                        minWidth: 50,
+            /*
+
+
+             ValueListenableBuilder<String?>(
+               valueListenable: _startingTrackId,
+               builder: (context, startingId, _) {
+                 final isStartingThis =
+                     startingId == track.videoId && _busy.value;
+                 if (isStartingThis) {
+                   return SizedBox(
+                     width: 24,
+                     height: 24,
+                     child: ExpressiveLoadingIndicator(color: appbarcolor),
+                   );
+                 }
+                 return Container(
+                   decoration: BoxDecoration(
+                     color: appbarcolor.withAlpha(200),
+                     borderRadius: BorderRadius.circular(100),
+                   ),
+                   child: Center(
+                     child: IconButton(
+                       icon: const Icon(Icons.play_arrow, color: Colors.black),
+                       color: appbarcolor,
+                       onPressed: () async {
+                         if (busy || _audio.isPreparing.value) return;
+                         _busy.value = true;
+                         _startingTrackId.value = track.videoId;
+                         try {
+                           // Prefer local playback if metadata exists
+                           final local = _downloadsBox?.get(track.videoId);
+                           if (local != null) {
+                             try {
+                               final data =
+                                   jsonDecode(local) as Map<String, dynamic>;
+                               final filePath = data['filePath'] as String?;
+                               if (filePath != null &&
+                                   File(filePath).existsSync()) {
+                                 // Load offline track
+                                 try {
+                                   await _audio.stop();
+                                   await _audio.loadPlaylist(
+                                     [
+                                       StreamingData(
+                                         videoId: track.videoId,
+                                         title: track.title,
+                                         artist: track.artist,
+                                         thumbnailUrl:
+                                             data['artPath'] as String? ??
+                                             track.thumbnailUrl,
+                                         duration: track.duration,
+                                         streamUrl: filePath,
+                                         isAvailable: true,
+                                         isLocal: true,
+                                       ),
+                                     ],
+                                     initialIndex: 0,
+                                     autoPlay: true,
+                                     sourceType: 'OFFLINE',
+                                     sourceName: 'Downloads',
+                                   );
+                                 } catch (e) {
+                                   debugPrint('Offline load failed: $e');
+                                 }
+             
+                                 if (mounted) {
+                                   Navigator.of(context).push(
+                                     MaterialPageRoute(
+                                       builder: (context) => PlayerScreen(
+                                         title: track.title,
+                                         artist: track.artist,
+                                         imageUrl:
+                                             data['artPath'] as String? ??
+                                             track.thumbnailUrl,
+                                         duration: track.duration,
+                                         sourceType: 'OFFLINE',
+                                         sourceName: 'Downloads',
+                                       ),
+                                     ),
+                                   );
+                                 }
+                                 return;
+                               }
+                             } catch (_) {}
+                           }
+             
+                           // Fallback to online playlist
+                           final playlistFull = provider.videos
+                               .map(
+                                 (v) => StreamingData(
+                                   videoId: v.id.value,
+                                   title: v.title,
+                                   artist: v.author,
+                                   thumbnailUrl: v.thumbnails.highResUrl,
+                                   duration: v.duration,
+                                 ),
+                               )
+                               .toList();
+                           List<StreamingData> playlist;
+                           int cappedIndex;
+                           if (playlistFull.length > 25) {
+                             int start = (trackNumber - 1) - 12;
+                             if (start < 0) start = 0;
+                             if (start > playlistFull.length - 25)
+                               start = playlistFull.length - 25;
+                             playlist = playlistFull.sublist(
+                               start,
+                               start + 25,
+                             );
+                             cappedIndex = (trackNumber - 1) - start;
+                           } else {
+                             playlist = playlistFull;
+                             cappedIndex = trackNumber - 1;
+                           }
+             
+                           // Start loading the playlist (await it to ensure it starts)
+                           try {
+                             await _audio.stop();
+                             // Start loading but don't await completion - let progress tracking show
+                             _audio.loadPlaylist(
+                               playlist,
+                               initialIndex: cappedIndex,
+                               autoPlay: true,
+                               sourceType: 'PLAYLIST',
+                               sourceName: widget.playlistContent.name,
+                             );
+                           } catch (e) {
+                             debugPrint('Playlist load failed: $e');
+                           }
+             
+                           if (track.thumbnailUrl != null &&
+                               track.thumbnailUrl!.isNotEmpty) {
+                             try {
+                               await ImageCacheService().preloadImage(
+                                 track.thumbnailUrl!,
+                               );
+                             } catch (_) {}
+                           }
+                           if (mounted) {
+                             Navigator.of(context).push(
+                               MaterialPageRoute(
+                                 builder: (context) => PlayerScreen(
+                                   title: track.title,
+                                   artist: track.artist,
+                                   imageUrl: track.thumbnailUrl,
+                                   duration: track.duration,
+                                   playlist: playlist,
+                                   initialIndex: cappedIndex,
+                                   sourceType: 'PLAYLIST',
+                                   sourceName: widget.playlistContent.name,
+                                 ),
+                               ),
+                             );
+                           }
+                         } finally {
+                           _startingTrackId.value = null;
+                           if (mounted) _busy.value = false;
+                         }
+                       },
+                     ),
+                   ),
+                 );
+               },
+             ),
+           ),*/
+
+            /*
+
+ ValueListenableBuilder<String?>(
+               valueListenable: _startingTrackId,
+               builder: (context, startingId, _) {
+                 final isStartingThis =
+                     startingId == track.videoId && _busy.value;
+                 if (isStartingThis) {
+                   return SizedBox(
+                     width: 24,
+                     height: 24,
+                     child: ExpressiveLoadingIndicator(color: appbarcolor),
+                   );
+                 }
+                 return Container(
+                   decoration: BoxDecoration(
+                     color: appbarcolor.withAlpha(200),
+                     borderRadius: BorderRadius.circular(100),
+                   ),
+           */
+            child: ValueListenableBuilder<String?>(
+              valueListenable: _startingTrackId,
+              builder: (context, startingId, _) {
+                final isStartingThis =
+                    startingId == track.videoId && _busy.value;
+                if (isStartingThis) {
+                  return SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: ExpressiveLoadingIndicator(color: appbarcolor),
+                  );
+                }
+                return GestureDetector(
+                  onTap: () async {
+                    if (busy || _audio.isPreparing.value) return;
+                    _busy.value = true;
+                    _startingTrackId.value = track.videoId;
+                    try {
+                      // Prefer local playback if metadata exists
+                      final local = _downloadsBox?.get(track.videoId);
+                      if (local != null) {
+                        try {
+                          final data =
+                              jsonDecode(local) as Map<String, dynamic>;
+                          final filePath = data['filePath'] as String?;
+                          if (filePath != null && File(filePath).existsSync()) {
+                            // Load offline track
+                            try {
+                              await _audio.stop();
+                              await _audio.loadPlaylist(
+                                [
+                                  StreamingData(
+                                    videoId: track.videoId,
+                                    title: track.title,
+                                    artist: track.artist,
+                                    thumbnailUrl:
+                                        data['artPath'] as String? ??
+                                        track.thumbnailUrl,
+                                    duration: track.duration,
+                                    streamUrl: filePath,
+                                    isAvailable: true,
+                                    isLocal: true,
+                                  ),
+                                ],
+                                initialIndex: 0,
+                                autoPlay: true,
+                                sourceType: 'OFFLINE',
+                                sourceName: 'Downloads',
+                              );
+                            } catch (e) {
+                              debugPrint('Offline load failed: $e');
+                            }
+
+                            if (mounted) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => PlayerScreen(
+                                    title: track.title,
+                                    artist: track.artist,
+                                    imageUrl:
+                                        data['artPath'] as String? ??
+                                        track.thumbnailUrl,
+                                    duration: track.duration,
+                                    sourceType: 'OFFLINE',
+                                    sourceName: 'Downloads',
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                        } catch (_) {}
+                      }
+
+                      // Fallback to online playlist
+                      final playlistFull = provider.videos
+                          .map(
+                            (v) => StreamingData(
+                              videoId: v.id.value,
+                              title: v.title,
+                              artist: v.author,
+                              thumbnailUrl: v.thumbnails.highResUrl,
+                              duration: v.duration,
+                            ),
+                          )
+                          .toList();
+                      List<StreamingData> playlist;
+                      int cappedIndex;
+                      if (playlistFull.length > 25) {
+                        int start = (trackNumber - 1) - 12;
+                        if (start < 0) start = 0;
+                        if (start > playlistFull.length - 25) {
+                          start = playlistFull.length - 25;
+                        }
+                        playlist = playlistFull.sublist(start, start + 25);
+                        cappedIndex = (trackNumber - 1) - start;
+                      } else {
+                        playlist = playlistFull;
+                        cappedIndex = trackNumber - 1;
+                      }
+
+                      // Start loading the playlist (await it to ensure it starts)
+                      try {
+                        await _audio.stop();
+                        // Start loading but don't await completion - let progress tracking show
+                        _audio.loadPlaylist(
+                          playlist,
+                          initialIndex: cappedIndex,
+                          autoPlay: true,
+                          sourceType: 'PLAYLIST',
+                          sourceName: widget.playlistContent.name,
+                        );
+                      } catch (e) {
+                        debugPrint('Playlist load failed: $e');
+                      }
+
+                      if (track.thumbnailUrl != null &&
+                          track.thumbnailUrl!.isNotEmpty) {
+                        try {
+                          await ImageCacheService().preloadImage(
+                            track.thumbnailUrl!,
+                          );
+                        } catch (_) {}
+                      }
+                      if (mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => PlayerScreen(
+                              title: track.title,
+                              artist: track.artist,
+                              imageUrl: track.thumbnailUrl,
+                              duration: track.duration,
+                              playlist: playlist,
+                              initialIndex: cappedIndex,
+                              sourceType: 'PLAYLIST',
+                              sourceName: widget.playlistContent.name,
+                            ),
+                          ),
+                        );
+                      }
+                    } finally {
+                      _startingTrackId.value = null;
+                      if (mounted) _busy.value = false;
+                    }
+                  },
+
+                  /// Video song Tile UI
+                  child: ListTile(
+                    /* contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),*/
+                    leading: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: M3Container.c7SidedCookie(
+                        width: 56,
+                        height: 56,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child:
+                                  (track.thumbnailUrl != null &&
+                                      track.thumbnailUrl!.isNotEmpty)
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: CachedNetworkImage(
+                                        imageUrl: track.thumbnailUrl!,
+                                        placeholder: M3Container.c7SidedCookie(
+                                          color: bgcolor.withAlpha(50),
+                                          child: ExpressiveLoadingIndicator(
+                                            color: appbarcolor.withAlpha(155),
+                                            constraints: BoxConstraints(
+                                              maxHeight: 100,
+                                              maxWidth: 100,
+                                              minHeight: 50,
+                                              minWidth: 50,
+                                            ),
+                                          ),
+                                        ),
+                                        fit: BoxFit.cover,
+                                        width: 56,
+                                        height: 56,
+                                      ),
+                                    )
+                                  : Center(
+                                      child: M3Container.c7SidedCookie(
+                                        color: bgcolor.withAlpha(50),
+                                        child: Icon(
+                                          Icons.music_note,
+                                          color: iconcolor.withAlpha(155),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  fit: BoxFit.cover,
-                                  width: 56,
-                                  height: 56,
-                                ),
-                              )
-                            : Center(
-                                child: M3Container.c7SidedCookie(
-                                  color: bgcolor.withAlpha(50),
-                                  child: Icon(
-                                    Icons.music_note,
-                                    color: iconcolor.withAlpha(155),
-                                  ),
-                                ),
-                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              title: Text(
-                track.title,
-                style: TextStyle(
-                  color: txtcolor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    video.author,
-                    style: TextStyle(
-                      color: txtcolor.withAlpha(178),
-                      fontSize: 14,
                     ),
-                  ),
-                  if (video.duration != null)
-                    Text(
-                      _formatDuration(video.duration!),
+                    title: Text(
+                      track.title,
                       style: TextStyle(
-                        color: txtcolor.withAlpha((255 * 0.5).toInt()),
+                        color: txtcolor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      video.author,
+                      style: TextStyle(
+                        color: txtcolor.withAlpha(178),
                         fontSize: 12,
                       ),
                     ),
-                ],
-              ),
-              trailing: IntrinsicWidth(
-                child: ValueListenableBuilder<String?>(
-                  valueListenable: _startingTrackId,
-                  builder: (context, startingId, _) {
-                    final isStartingThis =
-                        startingId == track.videoId && _busy.value;
-                    if (isStartingThis) {
-                      return SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: ExpressiveLoadingIndicator(color: appbarcolor),
-                      );
-                    }
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: appbarcolor.withAlpha(200),
-                        borderRadius: BorderRadius.circular(100),
-                      ),
-                      child: Center(
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.play_arrow,
-                            color: Colors.black,
-                          ),
-                          color: appbarcolor,
-                          onPressed: () async {
-                            if (busy || _audio.isPreparing.value) return;
-                            _busy.value = true;
-                            _startingTrackId.value = track.videoId;
-                            try {
-                              // Prefer local playback if metadata exists
-                              final local = _downloadsBox?.get(track.videoId);
-                              if (local != null) {
-                                try {
-                                  final data =
-                                      jsonDecode(local) as Map<String, dynamic>;
-                                  final filePath = data['filePath'] as String?;
-                                  if (filePath != null &&
-                                      File(filePath).existsSync()) {
-                                    // Load offline track
-                                    try {
-                                      await _audio.stop();
-                                      await _audio.loadPlaylist(
-                                        [
-                                          StreamingData(
-                                            videoId: track.videoId,
-                                            title: track.title,
-                                            artist: track.artist,
-                                            thumbnailUrl:
-                                                data['artPath'] as String? ??
-                                                track.thumbnailUrl,
-                                            duration: track.duration,
-                                            streamUrl: filePath,
-                                            isAvailable: true,
-                                            isLocal: true,
-                                          ),
-                                        ],
-                                        initialIndex: 0,
-                                        autoPlay: true,
-                                        sourceType: 'OFFLINE',
-                                        sourceName: 'Downloads',
-                                      );
-                                    } catch (e) {
-                                      debugPrint('Offline load failed: $e');
-                                    }
-
-                                    if (mounted) {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (context) => PlayerScreen(
-                                            title: track.title,
-                                            artist: track.artist,
-                                            imageUrl:
-                                                data['artPath'] as String? ??
-                                                track.thumbnailUrl,
-                                            duration: track.duration,
-                                            sourceType: 'OFFLINE',
-                                            sourceName: 'Downloads',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return;
-                                  }
-                                } catch (_) {}
-                              }
-
-                              // Fallback to online playlist
-                              final playlistFull = provider.videos
-                                  .map(
-                                    (v) => StreamingData(
-                                      videoId: v.id.value,
-                                      title: v.title,
-                                      artist: v.author,
-                                      thumbnailUrl: v.thumbnails.highResUrl,
-                                      duration: v.duration,
-                                    ),
-                                  )
-                                  .toList();
-                              List<StreamingData> playlist;
-                              int cappedIndex;
-                              if (playlistFull.length > 25) {
-                                int start = (trackNumber - 1) - 12;
-                                if (start < 0) start = 0;
-                                if (start > playlistFull.length - 25)
-                                  start = playlistFull.length - 25;
-                                playlist = playlistFull.sublist(
-                                  start,
-                                  start + 25,
-                                );
-                                cappedIndex = (trackNumber - 1) - start;
-                              } else {
-                                playlist = playlistFull;
-                                cappedIndex = trackNumber - 1;
-                              }
-
-                              // Start loading the playlist (await it to ensure it starts)
-                              try {
-                                await _audio.stop();
-                                // Start loading but don't await completion - let progress tracking show
-                                _audio.loadPlaylist(
-                                  playlist,
-                                  initialIndex: cappedIndex,
-                                  autoPlay: true,
-                                  sourceType: 'PLAYLIST',
-                                  sourceName: widget.playlistContent.name,
-                                );
-                              } catch (e) {
-                                debugPrint('Playlist load failed: $e');
-                              }
-
-                              if (track.thumbnailUrl != null &&
-                                  track.thumbnailUrl!.isNotEmpty) {
-                                try {
-                                  await ImageCacheService().preloadImage(
-                                    track.thumbnailUrl!,
-                                  );
-                                } catch (_) {}
-                              }
-                              if (mounted) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => PlayerScreen(
-                                      title: track.title,
-                                      artist: track.artist,
-                                      imageUrl: track.thumbnailUrl,
-                                      duration: track.duration,
-                                      playlist: playlist,
-                                      initialIndex: cappedIndex,
-                                      sourceType: 'PLAYLIST',
-                                      sourceName: widget.playlistContent.name,
-                                    ),
-                                  ),
-                                );
-                              }
-                            } finally {
-                              _startingTrackId.value = null;
-                              if (mounted) _busy.value = false;
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+                    trailing: (video.duration != null)
+                        ? Text(
+                            _formatDuration(video.duration!),
+                            style: TextStyle(
+                              color: txtcolor.withAlpha((255 * 0.5).toInt()),
+                              fontSize: 12,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                );
+              },
             ),
+
+            //////////////////////////////
           ),
         );
       },

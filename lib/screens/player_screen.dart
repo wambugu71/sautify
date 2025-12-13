@@ -31,6 +31,7 @@ import 'package:sautifyv2/constants/ui_colors.dart';
 import 'package:sautifyv2/db/library_store.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:sautifyv2/models/track_info.dart';
+import 'package:sautifyv2/providers/set_dynamic_colors.dart';
 import 'package:sautifyv2/screens/current_playlist_screen.dart';
 import 'package:sautifyv2/screens/equalizer_screen.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
@@ -43,6 +44,7 @@ class PlayerScreen extends StatefulWidget {
   final String title;
   final String artist;
   final String? imageUrl;
+
   final Duration? duration;
   final String? videoId;
   final List<StreamingData>? playlist;
@@ -79,6 +81,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Dynamic background colors based on current artwork
   List<Color> _bgColors = [bgcolor.withAlpha(200), bgcolor, Colors.black];
   String? _lastArtworkUrl;
+  //settings\
+  final _settings = SettingsService();
 
   // Lyrics state
   final YTMusic _ytmusic = YTMusic();
@@ -230,6 +234,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    late bool eq = _settings.equalizerEnabled;
     return Scaffold(
       backgroundColor: bgcolor,
       body: StreamBuilder<TrackInfo>(
@@ -306,7 +311,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     child: Column(
                       children: [
                         // Top bar
-                        _buildTopBar(info),
+                        _buildTopBar(info, eq),
 
                         const SizedBox(height: 40),
 
@@ -446,11 +451,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       final newColors = <Color>[primary, secondary, Colors.black];
-
+      //   context.read<SetColors>().setColors(newColors);
       if (!mounted) return;
+      context.read<SetColors>().setColors(newColors);
       setState(() => _bgColors = newColors);
     } catch (_) {
       if (!mounted) return;
+      //set  colors  for  the  mini player
+      /*context.read<SetColors>().setColors([
+        bgcolor.withAlpha(200),
+        bgcolor,
+        Colors.black,
+      ]);*/
       setState(
         () => _bgColors = [bgcolor.withAlpha(200), bgcolor, Colors.black],
       );
@@ -489,7 +501,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  Widget _buildTopBar(TrackInfo? info) {
+  Widget _buildTopBar(TrackInfo? info, bool eq) {
     final type = (info?.sourceType ?? 'QUEUE').toUpperCase();
     final typeLabel = 'PLAYING FROM $type';
 
@@ -562,7 +574,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               MaterialPageRoute(builder: (context) => const EqualizerScreen()),
             );
           },
-          icon: Icon(Icons.equalizer_rounded, color: iconcolor, size: 28),
+          icon: eq
+              ? Icon(Icons.equalizer_rounded, color: appbarcolor, size: 28)
+              : Icon(Icons.equalizer_rounded, color: iconcolor, size: 28),
         ),
         /* IconButton(
           onPressed: () {},
@@ -676,9 +690,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     color: txtcolor,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  // maxLines: 2,
-                  //   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(height: 8),
@@ -895,27 +909,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 final isLoading =
                     (!effectivePlaying) && (preparing || engineLoading);
 
-                return IconButton(
-                  onPressed: isLoading ? null : _togglePlayPause,
-                  icon: isLoading
-                      ? SizedBox(
-                          width: 32,
-                          height: 32,
-                          child: LoadingIndicatorM3E(
-                            containerColor: bgcolor.withAlpha(100),
-                            color: appbarcolor.withAlpha(155),
-                            polygons: [
-                              MaterialShapes.sunny,
-                              MaterialShapes.cookie9Sided,
-                              MaterialShapes.pill,
-                            ],
+                return Center(
+                  child: IconButton(
+                    onPressed: isLoading ? null : _togglePlayPause,
+                    icon: isLoading
+                        ? SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: LoadingIndicatorM3E(
+                              containerColor: bgcolor.withAlpha(100),
+                              color: appbarcolor.withAlpha(155),
+                              polygons: [
+                                MaterialShapes.sunny,
+                                MaterialShapes.cookie9Sided,
+                                MaterialShapes.pill,
+                              ],
+                            ),
+                          )
+                        : Icon(
+                            effectivePlaying ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white,
+                            size: 32,
                           ),
-                        )
-                      : Icon(
-                          effectivePlaying ? Icons.pause : Icons.play_arrow,
-                          color: Colors.white,
-                          size: 32,
-                        ),
+                    //  label: SizedBox.shrink(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: appbarcolor,
+                      shape: CircleBorder(),
+                    ),
+                  ),
                 );
               },
             );
@@ -950,26 +971,77 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Center(
-          child: IconButton(
-            tooltip: 'Lyrics',
-            icon: Icon(
-              _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
-              color: Colors.white,
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _showLyrics
+                ? appbarcolor
+                : cardcolor.withAlpha(160),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-            onPressed: () {
-              if (_showLyrics) {
-                setState(() => _showLyrics = false);
-              } else {
-                _loadLyricsForCurrentSong();
-              }
-            },
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 6.0,
+            ),
+          ),
+          label: Text('Lyrics', style: TextStyle(color: txtcolor)),
+          icon: Icon(
+            _showLyrics ? Icons.lyrics : Icons.lyrics_outlined,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            if (_showLyrics) {
+              setState(() => _showLyrics = false);
+            } else {
+              _loadLyricsForCurrentSong();
+            }
+          },
+        ),
+        //cast will be  done  soon!
+        IconButton(
+          style: IconButton.styleFrom(
+            backgroundColor: cardcolor.withAlpha(160),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 6.0,
+            ),
+          ),
+          onPressed: () {
+            //show  not  implimented  dialogue
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: cardcolor,
+                title: Text(
+                  'Not Implemented',
+                  style: TextStyle(color: txtcolor),
+                ),
+                content: Text(
+                  'Casting functionality will be implemented in a future update. enjoy your music.',
+                  style: TextStyle(color: txtcolor),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK', style: TextStyle(color: appbarcolor)),
+                  ),
+                ],
+              ),
+            );
+          },
+          icon: Icon(
+            Icons.cast_rounded,
+            color: iconcolor.withAlpha(180),
+            size: 24,
           ),
         ),
         /* IconButton(
           onPressed: () {},
           icon: Icon(Icons.devices, color: iconcolor.withAlpha(180), size: 24),
-        ),*/
+        ),
         Row(
           children: [
             //Icon(Icons.headphones, color: appbarcolor, size: 16),
@@ -990,17 +1062,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ),
           ],
-        ),
-        Center(
-          child: IconButton(
-            onPressed: () {
-              _navigateToCurrentPlaylist(context);
-            },
-            icon: Icon(
-              Icons.queue_music,
-              color: iconcolor.withAlpha(180),
-              size: 24,
+        ),*/
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: cardcolor.withAlpha(160),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 6.0,
+            ),
+          ),
+          label: Text('Up next', style: TextStyle(color: txtcolor)),
+          onPressed: () {
+            _navigateToCurrentPlaylist(context);
+          },
+          icon: Icon(
+            Icons.queue_music,
+            color: iconcolor.withAlpha(180),
+            size: 24,
           ),
         ),
       ],

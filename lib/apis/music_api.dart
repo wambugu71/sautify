@@ -132,16 +132,19 @@ class Api implements MusicAPI {
     final lower = url.toLowerCase();
     if (lower.contains('-320-') ||
         lower.contains('320kb') ||
-        lower.contains('320.'))
+        lower.contains('320.')) {
       return '320';
+    }
     if (lower.contains('-192-') ||
         lower.contains('192kb') ||
-        lower.contains('192.'))
+        lower.contains('192.')) {
       return '192';
+    }
     if (lower.contains('-128-') ||
         lower.contains('128kb') ||
-        lower.contains('128.'))
+        lower.contains('128.')) {
       return '128';
+    }
     return null;
   }
 }

@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
 // flutter_localizations are included via AppLocalizations.localizationsDelegates
 import 'package:sautifyv2/l10n/app_localizations.dart';
+import 'package:sautifyv2/providers/set_dynamic_colors.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/widgets/mini_player.dart';
 
@@ -255,6 +256,7 @@ class _MainAppState extends State<MainApp> {
         ),
         // Use the already-initialized singleton and prevent Provider from disposing it
         ChangeNotifierProvider<SettingsService>.value(value: SettingsService()),
+        ChangeNotifierProvider(create: (context) => SetColors()),
       ],
       child: Consumer<SettingsService>(
         builder: (context, settings, _) {

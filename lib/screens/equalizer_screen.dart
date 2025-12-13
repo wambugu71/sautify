@@ -78,7 +78,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
               await _settings.setEqualizerEnabled(value);
               await _audioService.equalizer.setEnabled(value);
             },
-            activeColor: appbarcolor,
+            activeThumbColor: appbarcolor,
           ),
         ],
       ),
