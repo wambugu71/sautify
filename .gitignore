@@ -46,7 +46,6 @@ app.*.map.json
 /android/app/release
 /android/.gradle
 /android/captures/
-/android/
 /lib/test*
 
 key.properties
