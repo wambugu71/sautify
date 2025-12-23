@@ -53,7 +53,7 @@ class PlayerScreen extends StatefulWidget {
   final int? initialIndex;
   // New: where playback originates
   final String?
-  sourceType; // PLAYLIST, ALBUM, SEARCH, RECENTS, FAVORITES, QUEUE
+      sourceType; // PLAYLIST, ALBUM, SEARCH, RECENTS, FAVORITES, QUEUE
   final String? sourceName; // e.g., playlist/album name
 
   const PlayerScreen({
@@ -264,12 +264,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
           final info = infoSnap.data;
 
           // Fallbacks to initial widget props when stream not ready
-          final currentTitle = info?.title.isNotEmpty == true
-              ? info!.title
-              : widget.title;
-          final currentArtist = info?.artist.isNotEmpty == true
-              ? info!.artist
-              : widget.artist;
+          final currentTitle =
+              info?.title.isNotEmpty == true ? info!.title : widget.title;
+          final currentArtist =
+              info?.artist.isNotEmpty == true ? info!.artist : widget.artist;
           final artworkUrl = info?.thumbnailUrl ?? widget.imageUrl;
           final duration = info?.duration ?? widget.duration;
           final position = info?.position ?? Duration.zero;
@@ -753,8 +751,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
-    final isLocalImage =
-        imageUrl != null &&
+    final isLocalImage = imageUrl != null &&
         (imageUrl.startsWith('file://') ||
             imageUrl.startsWith('/') ||
             imageUrl.contains('\\'));
@@ -778,43 +775,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
           borderRadius: BorderRadius.circular(12),
           child: imageUrl != null
               ? (isLocalImage
-                    ? Image.file(
-                        File(imageUrl.replaceFirst('file://', '')),
-                        fit: BoxFit.cover,
-                        width: 320,
-                        height: 320,
-                        errorBuilder: (context, _, _) =>
-                            _buildDefaultAlbumArt(),
-                      )
-                    : CachedNetworkImage(
-                        placeholder: M3Container.c7SidedCookie(
-                          child: LoadingIndicatorM3E(
-                            containerColor: Theme.of(
-                              context,
-                            ).scaffoldBackgroundColor.withAlpha(100),
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primary.withAlpha(155),
-                            constraints: BoxConstraints(
-                              maxWidth: 100,
-                              maxHeight: 100,
-                              minWidth: 80,
-                              minHeight: 80,
-                            ),
-                            polygons: [
-                              MaterialShapes.sunny,
-                              MaterialShapes.cookie9Sided,
-                              MaterialShapes.pill,
-                            ],
+                  ? Image.file(
+                      File(imageUrl.replaceFirst('file://', '')),
+                      fit: BoxFit.cover,
+                      width: 320,
+                      height: 320,
+                      errorBuilder: (context, _, __) => _buildDefaultAlbumArt(),
+                    )
+                  : CachedNetworkImage(
+                      placeholder: M3Container.c7SidedCookie(
+                        child: LoadingIndicatorM3E(
+                          containerColor: Theme.of(
+                            context,
+                          ).scaffoldBackgroundColor.withAlpha(100),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withAlpha(155),
+                          constraints: BoxConstraints(
+                            maxWidth: 100,
+                            maxHeight: 100,
+                            minWidth: 80,
+                            minHeight: 80,
                           ),
+                          polygons: [
+                            MaterialShapes.sunny,
+                            MaterialShapes.cookie9Sided,
+                            MaterialShapes.pill,
+                          ],
                         ),
-                        imageUrl: imageUrl,
-                        borderRadius: BorderRadius.circular(12),
-                        fit: BoxFit.cover,
-                        width: 320,
-                        height: 320,
-                        errorWidget: _buildDefaultAlbumArt(),
-                      ))
+                      ),
+                      imageUrl: imageUrl,
+                      borderRadius: BorderRadius.circular(12),
+                      fit: BoxFit.cover,
+                      width: 320,
+                      height: 320,
+                      errorWidget: _buildDefaultAlbumArt(),
+                    ))
               : _buildDefaultAlbumArt(),
         ),
       ),
@@ -865,7 +861,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           color: Theme.of(context).textTheme.bodyLarge?.color,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-
                           overflow: TextOverflow.ellipsis,
                         ),
                       )
@@ -904,8 +899,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         IconButton(
           onPressed: () async {
-            final t =
-                _audioService.currentTrack ??
+            final t = _audioService.currentTrack ??
                 (widget.videoId != null
                     ? StreamingData(
                         videoId: widget.videoId!,
@@ -1020,8 +1014,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             value: posRatio,
                             onChanged: (newValue) {
                               final newPosition = Duration(
-                                milliseconds: (total.inMilliseconds * newValue)
-                                    .round(),
+                                milliseconds:
+                                    (total.inMilliseconds * newValue).round(),
                               );
                               _audioService.seek(newPosition);
                             },
@@ -1074,8 +1068,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final loopMode = info?.loopMode ?? 'off';
     final isRepeating = loopMode != 'off';
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final iconColor =
-        Theme.of(context).iconTheme.color ??
+    final iconColor = Theme.of(context).iconTheme.color ??
         Theme.of(context).colorScheme.onSurface;
 
     return Row(
@@ -1111,8 +1104,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 final effectivePlaying =
                     playerState?.playing ?? (info?.isPlaying ?? false);
                 final processing = playerState?.processingState;
-                final engineLoading =
-                    processing == ProcessingState.loading ||
+                final engineLoading = processing == ProcessingState.loading ||
                     processing == ProcessingState.buffering;
                 // Show loading only when NOT playing and either preparing or engine is loading
                 final isLoading =
@@ -1180,8 +1172,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Widget _buildBottomControls(String title) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final iconColor =
-        Theme.of(context).iconTheme.color ??
+    final iconColor = Theme.of(context).iconTheme.color ??
         Theme.of(context).colorScheme.onSurface;
 
     return Row(
@@ -1537,51 +1528,51 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                       )
                     : (_lyricsError != null
-                          ? Center(
-                              child: Text(
-                                _lyricsError!,
-                                style: TextStyle(
-                                  color: textColor.withOpacity(0.7),
-                                ),
+                        ? Center(
+                            child: Text(
+                              _lyricsError!,
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.7),
                               ),
-                            )
-                          : NotificationListener<ScrollNotification>(
-                              onNotification: (n) {
-                                if (n is UserScrollNotification) {
-                                  _userScrollingLyrics =
-                                      n.direction != ScrollDirection.idle;
-                                } else if (n is ScrollEndNotification) {
-                                  _userScrollingLyrics = false;
-                                }
-                                return false;
+                            ),
+                          )
+                        : NotificationListener<ScrollNotification>(
+                            onNotification: (n) {
+                              if (n is UserScrollNotification) {
+                                _userScrollingLyrics =
+                                    n.direction != ScrollDirection.idle;
+                              } else if (n is ScrollEndNotification) {
+                                _userScrollingLyrics = false;
+                              }
+                              return false;
+                            },
+                            child: ListView.builder(
+                              controller: _lyricsScrollController,
+                              itemCount: _lyrics.length,
+                              itemBuilder: (context, i) {
+                                final line = _lyrics[i];
+                                final active = line.isActive(adjustedPos);
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4.0,
+                                  ),
+                                  child: Text(
+                                    line.text,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: active
+                                          ? textColor
+                                          : textColor.withOpacity(0.7),
+                                      fontSize: active ? 18 : 14,
+                                      fontWeight: active
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                );
                               },
-                              child: ListView.builder(
-                                controller: _lyricsScrollController,
-                                itemCount: _lyrics.length,
-                                itemBuilder: (context, i) {
-                                  final line = _lyrics[i];
-                                  final active = line.isActive(adjustedPos);
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4.0,
-                                    ),
-                                    child: Text(
-                                      line.text,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: active
-                                            ? textColor
-                                            : textColor.withOpacity(0.7),
-                                        fontSize: active ? 18 : 14,
-                                        fontWeight: active
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            )),
+                            ),
+                          )),
               ),
               if (!_lyricsLoading && _lyricsError == null && _lyrics.isNotEmpty)
                 Column(
@@ -1652,8 +1643,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     final pos = _lyricsScrollController.position;
     final viewport = pos.viewportDimension;
-    final target =
-        (index * _lyricRowApproxHeight) -
+    final target = (index * _lyricRowApproxHeight) -
         (viewport / 2 - _lyricRowApproxHeight / 2);
     final clamped = target.clamp(0.0, pos.maxScrollExtent);
 

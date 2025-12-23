@@ -296,7 +296,10 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search songs, artists, albums',
                       hintStyle: TextStyle(
-                        color: Theme.of(context).textTheme.bodyMedium?.color
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.color
                             ?.withAlpha((255 * 0.7).toInt()),
                       ),
                       prefixIcon: Icon(
@@ -519,7 +522,7 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: provider.albumResults.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final album = provider.albumResults[index];
                     return ValueListenableBuilder<String?>(
@@ -578,8 +581,8 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                 listen: false,
                               );
                               final isSaved = lib.getAlbums().any(
-                                (a) => a.id == album.albumId,
-                              );
+                                    (a) => a.id == album.albumId,
+                                  );
                               if (isSaved) {
                                 await lib.deleteAlbum(album.albumId);
                                 if (context.mounted) {
@@ -645,13 +648,15 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                               album.thumbnailUrl != null
                                                   ? M3Container.square(
                                                       child: CachedNetworkImage(
-                                                        placeholder: M3Container.square(
-                                                          child: LoadingIndicatorM3E(
+                                                        placeholder:
+                                                            M3Container.square(
+                                                          child:
+                                                              LoadingIndicatorM3E(
                                                             containerColor:
                                                                 primaryColor
                                                                     .withAlpha(
-                                                                      100,
-                                                                    ),
+                                                              100,
+                                                            ),
                                                             color: primaryColor
                                                                 .withAlpha(155),
                                                           ),
@@ -675,15 +680,15 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                               Positioned(
                                                 top: 6,
                                                 right: 6,
-                                                child: Consumer<LibraryProvider>(
+                                                child:
+                                                    Consumer<LibraryProvider>(
                                                   builder: (context, lib, _) {
-                                                    final isSaved = lib
-                                                        .getAlbums()
-                                                        .any(
-                                                          (a) =>
-                                                              a.id ==
-                                                              album.albumId,
-                                                        );
+                                                    final isSaved =
+                                                        lib.getAlbums().any(
+                                                              (a) =>
+                                                                  a.id ==
+                                                                  album.albumId,
+                                                            );
                                                     return InkWell(
                                                       onTap: () async {
                                                         if (isSaved) {
@@ -691,7 +696,8 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                             album.albumId,
                                                           );
                                                           if (context.mounted) {
-                                                            ScaffoldMessenger.of(
+                                                            ScaffoldMessenger
+                                                                .of(
                                                               context,
                                                             ).showSnackBar(
                                                               const SnackBar(
@@ -705,13 +711,13 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                           final tracks =
                                                               await provider
                                                                   .fetchAlbumTracks(
-                                                                    album
-                                                                        .albumId,
-                                                                  );
+                                                            album.albumId,
+                                                          );
                                                           if (tracks.isEmpty) {
                                                             return;
                                                           }
-                                                          final saved = SavedAlbum(
+                                                          final saved =
+                                                              SavedAlbum(
                                                             id: album.albumId,
                                                             title: album.title,
                                                             artist:
@@ -724,7 +730,8 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                             saved,
                                                           );
                                                           if (context.mounted) {
-                                                            ScaffoldMessenger.of(
+                                                            ScaffoldMessenger
+                                                                .of(
                                                               context,
                                                             ).showSnackBar(
                                                               const SnackBar(
@@ -738,25 +745,25 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                       },
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                            16,
-                                                          ),
+                                                        16,
+                                                      ),
                                                       child: Container(
                                                         decoration:
                                                             const BoxDecoration(
-                                                              color: Colors
-                                                                  .black26,
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
+                                                          color: Colors.black26,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
                                                         padding:
-                                                            const EdgeInsets.all(
-                                                              4,
-                                                            ),
+                                                            const EdgeInsets
+                                                                .all(
+                                                          4,
+                                                        ),
                                                         child: Icon(
                                                           isSaved
                                                               ? Icons.favorite
                                                               : Icons
-                                                                    .favorite_border,
+                                                                  .favorite_border,
                                                           color: isSaved
                                                               ? Colors.red
                                                               : Colors.white,
@@ -779,15 +786,15 @@ class _SearchOverlayScreenState extends State<SearchOverlayScreen> {
                                                       height: 28,
                                                       child:
                                                           LoadingIndicatorM3E(
-                                                            containerColor:
-                                                                primaryColor
-                                                                    .withAlpha(
-                                                                      100,
-                                                                    ),
-                                                            //strokeWidth: 3,
-                                                            color: primaryColor
-                                                                .withAlpha(155),
-                                                          ),
+                                                        containerColor:
+                                                            primaryColor
+                                                                .withAlpha(
+                                                          100,
+                                                        ),
+                                                        //strokeWidth: 3,
+                                                        color: primaryColor
+                                                            .withAlpha(155),
+                                                      ),
                                                     ),
                                                   ),
                                                 ),

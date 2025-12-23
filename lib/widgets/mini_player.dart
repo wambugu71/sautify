@@ -50,8 +50,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
             final hasTrack = trackInfo?.track != null;
 
             // Consider metadata available when we have duration or artwork (or both)
-            final bool metadataReady =
-                hasTrack &&
+            final bool metadataReady = hasTrack &&
                 ((trackInfo?.duration != null) ||
                     ((trackInfo?.track?.thumbnailUrl ?? '').isNotEmpty) ||
                     ((trackInfo?.title ?? '').isNotEmpty &&
@@ -97,13 +96,13 @@ class _MiniPlayerState extends State<MiniPlayer> {
                 if (mounted) {
                   if (currentTrack.isLocal && currentTrack.localId != null) {
                     context.read<SetColors>().getColorFromLocalId(
-                      currentTrack.localId!,
-                    );
+                          currentTrack.localId!,
+                        );
                   } else if (currentTrack.thumbnailUrl != null &&
                       currentTrack.thumbnailUrl!.isNotEmpty) {
                     context.read<SetColors>().getColor(
-                      currentTrack.thumbnailUrl!,
-                    );
+                          currentTrack.thumbnailUrl!,
+                        );
                   } else {
                     context.read<SetColors>().setColors([
                       Theme.of(context).colorScheme.surface.withAlpha(200),
@@ -190,7 +189,8 @@ class _MiniPlayerState extends State<MiniPlayer> {
                           trackColor: iconcolor,
                           activeColor: appbarcolor,
                         ),
-                        */ Padding(
+                        */
+                            Padding(
                           padding: const EdgeInsets.only(left: 8.0, right: 8.0),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12.0),
@@ -217,8 +217,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
                               M3Container.c7SidedCookie(
                                 width: 48,
                                 height: 48,
-                                child:
-                                    _cachedArtwork ??
+                                child: _cachedArtwork ??
                                     _buildAlbumArt(currentTrack),
                               ),
 
@@ -300,17 +299,15 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                     stream: audioService.playerStateStream,
                                     builder: (context, snapshot) {
                                       final state = snapshot.data;
-                                      final effectivePlaying =
-                                          state?.playing ??
+                                      final effectivePlaying = state?.playing ??
                                           (trackInfoSnapshot.data?.isPlaying ??
                                               false);
                                       final engineLoading =
                                           state?.processingState ==
-                                              ProcessingState.loading ||
-                                          state?.processingState ==
-                                              ProcessingState.buffering;
-                                      final isLoading =
-                                          (!effectivePlaying) &&
+                                                  ProcessingState.loading ||
+                                              state?.processingState ==
+                                                  ProcessingState.buffering;
+                                      final isLoading = (!effectivePlaying) &&
                                           (preparing || engineLoading);
 
                                       if (isLoading) {
@@ -339,7 +336,6 @@ class _MiniPlayerState extends State<MiniPlayer> {
                                           backgroundColor: Theme.of(
                                             context,
                                           ).colorScheme.primary,
-
                                           padding: EdgeInsets.zero,
                                           minimumSize: const Size(32, 32),
                                           tapTargetSize:
@@ -435,7 +431,7 @@ class _MiniPlayerState extends State<MiniPlayer> {
           fit: BoxFit.cover,
           width: 48,
           height: 48,
-          errorBuilder: (context, _, _) => Icon(
+          errorBuilder: (context, _, __) => Icon(
             Icons.music_note,
             color: Theme.of(context).iconTheme.color?.withAlpha(180),
             size: 24,
