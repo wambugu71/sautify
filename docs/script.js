@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Set Current Year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
     // Scroll Animations
     const observerOptions = {
         threshold: 0.1,
