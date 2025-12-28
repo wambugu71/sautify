@@ -41,6 +41,8 @@ import 'package:sautifyv2/services/download_service.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
 import 'package:sautifyv2/services/settings_service.dart';
 import 'package:sautifyv2/widgets/playlist_loading_progress.dart';
+import 'package:squiggly_slider/slider.dart';
+//import 'package:squiggly_slider/slider.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String title;
@@ -961,23 +963,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ignoring: true,
                       child: SliderTheme(
                         data: SliderTheme.of(context).copyWith(
-                          disabledActiveTrackColor: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.color?.withAlpha(70),
-                          disabledInactiveTrackColor: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.color?.withAlpha(30),
-                          disabledThumbColor: Colors.transparent,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 0,
-                            elevation: 0,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 15,
-                          ),
-                          trackHeight: 2,
+                          thumbShape: SliderComponentShape.noThumb,
+                          overlayShape: SliderComponentShape.noOverlay,
+                          trackHeight: 1.0,
                         ),
-                        child: Slider(value: bufRatio, onChanged: null),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.horizontal(
+                              left: Radius.circular(24),
+                              right: Radius.circular(24)),
+                          child: SquigglySlider(
+                            value: bufRatio,
+                            min: 0.0,
+                            max: 1.0,
+                            activeColor: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.color?.withAlpha(70),
+                            inactiveColor: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.color?.withAlpha(30),
+                            thumbColor: Colors.transparent,
+                            squiggleAmplitude: 0.0,
+                            squiggleWavelength: 0.0,
+                            squiggleSpeed: 0.0,
+                            onChanged: (v) {},
+                          ),
+                        ),
                       ),
                     ),
                     StreamBuilder<Duration>(
@@ -992,26 +1002,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             : 0.0;
                         return SliderTheme(
                           data: SliderTheme.of(context).copyWith(
-                            activeTrackColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            inactiveTrackColor: Theme.of(
-                              context,
-                            ).colorScheme.primary.withAlpha(50),
-                            thumbColor: Theme.of(
-                              context,
-                            ).textTheme.bodyLarge?.color,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 0,
-                              elevation: 0,
-                            ),
-                            trackHeight: 2.5,
-                            overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 15,
-                            ),
+                            thumbShape: SliderComponentShape.noThumb,
+                            overlayShape: SliderComponentShape.noOverlay,
                           ),
-                          child: Slider(
+                          child: SquigglySlider(
                             value: posRatio,
+                            min: 0.0,
+                            max: 1.0,
+                            activeColor: Theme.of(context).colorScheme.primary,
+                            inactiveColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withAlpha(50),
+                            thumbColor: Colors.transparent,
+                            squiggleAmplitude: 1.5,
+                            squiggleWavelength: 4.0,
+                            squiggleSpeed: 0.05,
                             onChanged: (newValue) {
                               final newPosition = Duration(
                                 milliseconds:
