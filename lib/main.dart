@@ -28,6 +28,8 @@ import 'package:sautifyv2/blocs/settings/settings_cubit.dart';
 import 'package:sautifyv2/blocs/settings/settings_state.dart';
 import 'package:sautifyv2/blocs/theme/theme_cubit.dart';
 import 'package:sautifyv2/constants/ui_colors.dart';
+import 'package:sautifyv2/db/continue_listening_store.dart';
+import 'package:sautifyv2/db/metadata_overrides_store.dart';
 // flutter_localizations are included via AppLocalizations.localizationsDelegates
 import 'package:sautifyv2/l10n/app_localizations.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
@@ -71,6 +73,10 @@ void main() async {
   if (!AppConfig.isTest) {
     await Hive.initFlutter();
   }
+
+  // Open app-wide local stores
+  await MetadataOverridesStore.ensureReady();
+  await ContinueListeningStore.ensureReady();
 
   // Configure and register memory pressure handling for images
   final imgCacheSvc = ImageCacheService();
