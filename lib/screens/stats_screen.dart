@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:loading_indicator_m3e/loading_indicator_m3e.dart';
 import 'package:sautifyv2/blocs/library/library_cubit.dart';
 import 'package:sautifyv2/blocs/library/library_state.dart';
+import 'package:sautifyv2/db/continue_listening_store.dart';
+import 'package:sautifyv2/db/metadata_overrides_store.dart';
 import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:sautifyv2/services/audio_player_service.dart';
 import 'package:sautifyv2/widgets/local_artwork_image.dart';
@@ -94,103 +96,271 @@ Widget _buildTrackArtwork(BuildContext context, StreamingData track) {
   );
 }
 
-class StatsScreen extends StatelessWidget {
-  const StatsScreen({super.key});
+enum _ListeningKey { recent, most }
+
+class _ListeningCard extends StatefulWidget {
+  const _ListeningCard();
+
+  @override
+  State<_ListeningCard> createState() => _ListeningCardState();
+}
+
+class _ListeningCardState extends State<_ListeningCard> {
+  _ListeningKey _selected = _ListeningKey.recent;
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Listening History'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Clear History',
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    backgroundColor: Theme.of(context).cardColor,
-                    title: Row(
-                      children: [
-                        Text(
-                          'Clear History',
-                          style: TextStyle(
-                            color: Theme.of(context).textTheme.bodyLarge?.color,
-                          ),
+    final theme = Theme.of(context);
+    final screenH = MediaQuery.sizeOf(context).height;
+    final sectionH = (screenH * 0.62).clamp(320.0, 640.0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: SizedBox(
+        height: sectionH,
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: theme.colorScheme.primary.withAlpha(25)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Listening',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: theme.textTheme.bodyLarge?.color,
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: Colors.amber,
-                        ),
-                      ],
-                    ),
-                    content: Text(
-                      'This will remove your recently played history! Are you sure you want to continue?',
-                      style: TextStyle(
-                        color: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.color?.withAlpha(200),
                       ),
                     ),
-                    actions: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text(
-                              'Clear',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<_ListeningKey>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _ListeningKey.recent,
+                        label: Text('Recently played'),
+                      ),
+                      ButtonSegment(
+                        value: _ListeningKey.most,
+                        label: Text('Most played'),
                       ),
                     ],
+                    selected: {_selected},
+                    onSelectionChanged: (selection) {
+                      if (selection.isEmpty) return;
+                      setState(() => _selected = selection.first);
+                    },
+                    showSelectedIcon: false,
                   ),
-                );
-
-                if (confirm == true && context.mounted) {
-                  context.read<LibraryCubit>().clearHistory();
-                }
-              },
-            ),
-          ],
-          bottom: TabBar(
-            indicatorColor: Theme.of(context).colorScheme.primary,
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Colors.grey,
-            tabs: const [
-              Tab(text: 'Recently Played'),
-              Tab(text: 'Most Played'),
+                ),
+              ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _selected == _ListeningKey.recent
+                      ? const _RecentlyPlayedTab(key: ValueKey('recent'))
+                      : const _MostPlayedTab(key: ValueKey('most')),
+                ),
+              ),
             ],
           ),
-        ),
-        body: const TabBarView(
-          children: [
-            _RecentlyPlayedTab(),
-            _MostPlayedTab(),
-          ],
         ),
       ),
     );
   }
 }
 
+class StatsScreen extends StatelessWidget {
+  const StatsScreen({super.key});
+
+  Widget _continueListeningHeader(BuildContext context) {
+    final listenable = ContinueListeningStore.listenable();
+    if (listenable == null) return const SizedBox.shrink();
+
+    return ValueListenableBuilder(
+      valueListenable: listenable,
+      builder: (context, _, __) {
+        final session = ContinueListeningStore.loadSync();
+        final track = session?.currentTrack;
+        if (session == null || track == null) return const SizedBox.shrink();
+
+        final applied = MetadataOverridesStore.maybeApplySync(track);
+        final pos = session.position;
+        final dur = applied.duration ?? Duration.zero;
+        final ratio = dur.inMilliseconds > 0
+            ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
+            : null;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withAlpha(24),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withAlpha(45),
+              ),
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: _buildTrackArtwork(context, applied),
+                  title: Text(
+                    applied.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    applied.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.play_arrow),
+                    onPressed: () {
+                      AudioPlayerService().loadPlaylist(
+                        session.playlist
+                            .map(MetadataOverridesStore.maybeApplySync)
+                            .toList(growable: false),
+                        initialIndex: session.currentIndex,
+                        autoPlay: true,
+                        sourceType: session.sourceType ?? 'CONTINUE',
+                        sourceName: session.sourceName ?? 'Continue listening',
+                      );
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        AudioPlayerService().seek(session.position);
+                      });
+                    },
+                    tooltip: 'Continue listening',
+                  ),
+                ),
+                if (ratio != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        minHeight: 4,
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primary.withAlpha(30),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _listeningTabsSection(BuildContext context) {
+    return const _ListeningCard();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Library'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (value) async {
+              if (value != 'clear_history') return;
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: Theme.of(context).cardColor,
+                  title: Row(
+                    children: [
+                      Text(
+                        'Clear History',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.amber,
+                      ),
+                    ],
+                  ),
+                  content: Text(
+                    'This will remove your recently played history! Are you sure you want to continue?',
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.color?.withAlpha(200),
+                    ),
+                  ),
+                  actions: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            'Clear',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && context.mounted) {
+                context.read<LibraryCubit>().clearHistory();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'clear_history',
+                child: Text('Clear listening history'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _continueListeningHeader(context),
+          _listeningTabsSection(context),
+        ],
+      ),
+    );
+  }
+}
+
 class _RecentlyPlayedTab extends StatelessWidget {
-  const _RecentlyPlayedTab();
+  const _RecentlyPlayedTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +394,7 @@ class _RecentlyPlayedTab extends StatelessWidget {
           itemCount: tracks.length,
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemBuilder: (context, index) {
-            final track = tracks[index];
+            final track = MetadataOverridesStore.maybeApplySync(tracks[index]);
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
@@ -274,7 +444,7 @@ class _RecentlyPlayedTab extends StatelessWidget {
 }
 
 class _MostPlayedTab extends StatelessWidget {
-  const _MostPlayedTab();
+  const _MostPlayedTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +479,22 @@ class _MostPlayedTab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemBuilder: (context, index) {
             final stat = stats[index];
+            final localId = _tryParseLocalId(stat.videoId);
+            final isLocal = localId != null;
+            final track = MetadataOverridesStore.maybeApplySync(
+              StreamingData(
+                videoId: stat.videoId,
+                title: stat.title,
+                artist: stat.artist,
+                thumbnailUrl: stat.thumbnailUrl,
+                isLocal: isLocal,
+                localId: localId,
+                streamUrl: isLocal
+                    ? 'content://media/external/audio/media/$localId'
+                    : null,
+                isAvailable: true,
+              ),
+            );
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
@@ -322,17 +508,10 @@ class _MostPlayedTab extends StatelessWidget {
               child: ListTile(
                 leading: _buildTrackArtwork(
                   context,
-                  StreamingData(
-                    videoId: stat.videoId,
-                    title: stat.title,
-                    artist: stat.artist,
-                    thumbnailUrl: stat.thumbnailUrl,
-                    isLocal: _tryParseLocalId(stat.videoId) != null,
-                    localId: _tryParseLocalId(stat.videoId),
-                  ),
+                  track,
                 ),
                 title: Text(
-                  stat.title,
+                  track.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -341,7 +520,7 @@ class _MostPlayedTab extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  '${stat.artist}  ${stat.playCount} plays',
+                  '${track.artist}  ${stat.playCount} plays',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -358,20 +537,6 @@ class _MostPlayedTab extends StatelessWidget {
                       ),
                 ),
                 onTap: () {
-                  final localId = _tryParseLocalId(stat.videoId);
-                  final isLocal = localId != null;
-                  final track = StreamingData(
-                    videoId: stat.videoId,
-                    title: stat.title,
-                    artist: stat.artist,
-                    thumbnailUrl: stat.thumbnailUrl,
-                    isLocal: isLocal,
-                    localId: localId,
-                    streamUrl: isLocal
-                        ? 'content://media/external/audio/media/$localId'
-                        : null,
-                    isAvailable: true,
-                  );
                   AudioPlayerService().loadPlaylist(
                     [track],
                     autoPlay: true,
