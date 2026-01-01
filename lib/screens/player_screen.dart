@@ -210,6 +210,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               item(
+                  icon: Icons.restore,
+                  label: 'Resume last session',
+                  value: 'resume'),
+              item(
                   icon: Icons.timer_outlined,
                   label: 'Sleep timer',
                   value: 'sleep'),
@@ -226,6 +230,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
 
     if (!mounted || action == null) return;
+    if (action == 'resume') {
+      final ok = await context
+          .read<AudioPlayerCubit>()
+          .service
+          .restoreLastSession(autoPlay: true);
+      if (!mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nothing to resume yet'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
     if (action == 'sleep') {
       await _showSleepTimerSheet();
       return;
@@ -398,7 +418,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     // Main Content
                     SafeArea(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
                         child: Column(
                           children: [
                             _buildTopBar(context, audioState),
@@ -458,7 +478,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
             onPressed: () => Navigator.pop(context),
           ),
           Expanded(
@@ -510,10 +530,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
             child: Hero(
               tag: "album_art_${track?.videoId ?? "default"}",
               child: Container(
-                width: MediaQuery.of(context).size.width * 0.85,
-                height: MediaQuery.of(context).size.width * 0.85,
+                width: MediaQuery.of(context).size.width * 0.92,
+                height: MediaQuery.of(context).size.width * 0.92,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withAlpha(100),
@@ -523,7 +543,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(12),
                   child: (track?.isLocal == true && track?.localId != null)
                       ? LocalArtworkImage(
                           localId: track!.localId!,
