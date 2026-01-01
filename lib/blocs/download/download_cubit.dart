@@ -188,6 +188,7 @@ class DownloadCubit extends Cubit<DownloadState> {
             final taggingAttempted =
                 (result['taggingAttempted'] as bool?) ?? false;
             final taggingOk = (result['taggingOk'] as bool?) ?? true;
+
             if (taggingAttempted && !taggingOk) {
               _emitTargetedEvent(
                 track.videoId,
@@ -291,6 +292,50 @@ class DownloadCubit extends Cubit<DownloadState> {
         isLocal: true,
         isAvailable: exists,
       );
+    }
+  }
+
+  String? _filePathFromBoxValue(String videoId) {
+    final box = _downloadsBox;
+    if (box == null) return null;
+
+    final value = box.get(videoId);
+    if (value == null || value.isEmpty) return null;
+
+    try {
+      final data = jsonDecode(value) as Map<String, dynamic>;
+      final filePath = (data['filePath'] as String?)?.trim();
+      if (filePath == null || filePath.isEmpty) return null;
+      return filePath;
+    } catch (_) {
+      // Legacy format: plain file path.
+      return value.trim().isEmpty ? null : value.trim();
+    }
+  }
+
+  Future<bool> deleteDownload(String videoId) async {
+    final box = _downloadsBox;
+    if (box == null) return false;
+
+    try {
+      final path = _filePathFromBoxValue(videoId);
+      if (path != null && path.isNotEmpty) {
+        try {
+          final f = File(path);
+          if (await f.exists()) {
+            await f.delete();
+          }
+        } catch (_) {
+          // Best-effort: still remove the metadata entry.
+        }
+      }
+
+      await box.delete(videoId);
+      await loadSongs();
+      return true;
+    } catch (e) {
+      debugPrint('deleteDownload failed: $e');
+      return false;
     }
   }
 
