@@ -12,6 +12,8 @@ class HiveBoxes {
   static const String playlists = 'playlists_box';
   static const String albums = 'albums_box';
   static const String stats = 'stats_box';
+  static const String continueListening = 'continue_listening_box';
+  static const String metadataOverrides = 'metadata_overrides_box';
 
   static Future<void>? _initFuture;
 
