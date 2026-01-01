@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:audiotags/audiotags.dart';
 import 'package:dio/dio.dart';
+import 'package:image/image.dart' as img;
 
 enum _DetectedAudioFormat { mp3, mp4, webm, unknown }
 
@@ -27,17 +28,20 @@ Future<Map<String, dynamic>> finalizeDownloadedFile(
 
   try {
     finalPath = await _ensureCorrectExtension(originalPath);
-  } catch (_) {
+  } catch (e) {
+    print('[DownloadWorker] Extension fix failed: $e');
     // best-effort
   }
 
-  // Only attempt tagging for formats lofty's backend supports reliably.
+  // Only attempt tagging for formats lofty's backend supports reliably which is my rust backend.
   bool taggingAttempted = false;
   try {
     final format = await _detectAudioFormat(finalPath);
+    print('[DownloadWorker] Detected format: $format for $finalPath');
     final canTag = format == _DetectedAudioFormat.mp3 ||
         format == _DetectedAudioFormat.mp4;
     if (!canTag) {
+      print('[DownloadWorker] Skipping tagging for format: $format');
       return {
         'finalPath': finalPath,
         'taggingAttempted': false,
@@ -54,21 +58,56 @@ Future<Map<String, dynamic>> finalizeDownloadedFile(
         !thumbUrl.startsWith('file:') &&
         (thumbUrl.startsWith('http://') || thumbUrl.startsWith('https://'))) {
       try {
+        print('[DownloadWorker] Fetching artwork from: $thumbUrl');
         final res = await Dio().get<List<int>>(
           thumbUrl,
-          options: Options(responseType: ResponseType.bytes),
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {
+              'Accept': 'image/jpeg, image/png, image/webp',
+            },
+          ),
         );
 
-        final bytes = Uint8List.fromList(res.data ?? const <int>[]);
+        var bytes = Uint8List.fromList(res.data ?? const <int>[]);
         if (bytes.isNotEmpty) {
           final ct = (res.headers.value('content-type') ?? '').toLowerCase();
+          print('[DownloadWorker] Artwork content-type: $ct');
           MimeType? mime;
           if (ct.contains('png')) mime = MimeType.png;
           if (ct.contains('jpeg') || ct.contains('jpg')) mime = MimeType.jpeg;
-          if (ct.contains('webp')) mime = null;
+
+          // Handle WebP or other formats by converting to JPEG
+          // Also resize if too large to prevent tag write failures
+          try {
+            img.Image? image = img.decodeImage(bytes);
+            if (image != null) {
+              // Resize if larger than 600x600 to ensure compatibility
+              if (image.width > 600 || image.height > 600) {
+                print(
+                    '[DownloadWorker] Resizing artwork from ${image.width}x${image.height}');
+                image = img.copyResize(
+                  image,
+                  width: image.width > image.height ? 600 : null,
+                  height: image.height > image.width ? 600 : null,
+                  maintainAspect: true,
+                );
+              }
+
+              // Always convert to JPEG for maximum compatibility
+              final jpg = img.encodeJpg(image, quality: 85);
+              bytes = Uint8List.fromList(jpg);
+              mime = MimeType.jpeg;
+              print(
+                  '[DownloadWorker] Converted artwork to JPEG, size: ${bytes.length}');
+            }
+          } catch (e) {
+            print('[DownloadWorker] Image conversion failed: $e');
+            // Conversion failed, try using original bytes if they were jpeg/png
+          }
 
           if (mime != null) {
-            final pic = await Picture.newInstance(
+            final pic = Picture(
               pictureType: PictureType.coverFront,
               mimeType: mime,
               bytes: bytes,
@@ -87,7 +126,11 @@ Future<Map<String, dynamic>> finalizeDownloadedFile(
       pictures: pictures,
     );
 
+    print('[DownloadWorker] Writing tags to $finalPath');
+    // Small delay to ensure file handle is released
+    await Future.delayed(const Duration(milliseconds: 200));
     await AudioTags.write(finalPath, tag);
+    print('[DownloadWorker] Tagging successful');
 
     return {
       'finalPath': finalPath,
@@ -95,7 +138,8 @@ Future<Map<String, dynamic>> finalizeDownloadedFile(
       'taggingOk': true,
       'error': null,
     };
-  } catch (e) {
+  } catch (e, st) {
+    print('[DownloadWorker] Tagging failed: $e\n$st');
     return {
       'finalPath': finalPath,
       'taggingAttempted': taggingAttempted,
@@ -144,7 +188,9 @@ Future<_DetectedAudioFormat> _detectAudioFormat(String path) async {
     } finally {
       await raf.close();
     }
-  } catch (_) {}
+  } catch (e) {
+    print('[DownloadWorker] Format detection failed: $e');
+  }
   return _DetectedAudioFormat.unknown;
 }
 
