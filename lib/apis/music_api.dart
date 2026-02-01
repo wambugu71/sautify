@@ -45,13 +45,13 @@ class Api implements MusicAPI {
       // Fall through to HTTP API fallback
     }
 
-    // 2) Fallback to HTTP API using Dio with smart retry (Okatsu)
+    // 2) Fallback to HTTP API using Dio with smart retry
     try {
       final dio = DioClient.instance;
 
       final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
       final resp = await dio.get(
-        'https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3',
+        'https://wambugu-music.vercel.app/download',
         queryParameters: {'url': youtubeUrl},
         options: Options(
           validateStatus: (s) => true,
@@ -69,15 +69,17 @@ class Api implements MusicAPI {
         final Map<String, dynamic> jsonResponse = body is String
             ? jsonDecode(body) as Map<String, dynamic>
             : (body as Map<String, dynamic>);
-        // Okatsu flat JSON mapping
-        if (jsonResponse['status'] == true &&
-            jsonResponse['dl'] != null &&
-            (jsonResponse['dl'] as String).isNotEmpty) {
-          final title = (jsonResponse['title'] as String?) ?? 'Unknown';
-          final format = (jsonResponse['format'] as String?) ?? 'mp3';
-          final thumb = (jsonResponse['thumb'] as String?) ?? '';
-          final dl = (jsonResponse['dl'] as String);
-          final duration = (jsonResponse['duration'] as num?)?.toInt() ?? 0;
+
+        final normalized = _normalizeDownloaderResponse(jsonResponse);
+        // Expect the legacy flattened contract: {status, dl, title, thumb, duration, format}
+        if (normalized['status'] == true &&
+            normalized['dl'] != null &&
+            (normalized['dl'] as String).isNotEmpty) {
+          final title = (normalized['title'] as String?) ?? 'Unknown';
+          final format = (normalized['format'] as String?) ?? 'mp3';
+          final thumb = (normalized['thumb'] as String?) ?? '';
+          final dl = (normalized['dl'] as String);
+          final duration = (normalized['duration'] as num?)?.toInt() ?? 0;
           final quality = _inferQualityFromUrl(dl) ?? '128';
           final meta = MusicMetadata(
             title: title,
@@ -91,13 +93,46 @@ class Api implements MusicAPI {
           musicMetaData = meta;
           return dl;
         }
-        throw Exception('Invalid Okatsu response');
+        throw Exception('Invalid downloader response');
       } else {
         throw Exception('Failed to fetch stream (status $status)');
       }
     } catch (e) {
       throw Exception('Check your internet connection and try again.');
     }
+  }
+
+  /// Normalizes multiple downloader JSON shapes into the legacy flat contract
+  /// expected by the rest of the app:
+  /// `{ status: bool, dl: String, title?: String, thumb?: String, duration?: num, format?: String }`.
+  Map<String, dynamic> _normalizeDownloaderResponse(Map<String, dynamic> json) {
+    // Old Okatsu-like: {status, dl, title, thumb, duration, format}
+    if (json['dl'] != null || json['thumb'] != null) {
+      return <String, dynamic>{
+        'status': json['status'] == true,
+        'dl': json['dl'],
+        'title': json['title'],
+        'thumb': json['thumb'],
+        'duration': json['duration'],
+        'format': json['format'],
+      };
+    }
+
+    // New API: {status, result:{title, format, thumbnail, duration, download_url}}
+    final result = json['result'];
+    if (result is Map) {
+      return <String, dynamic>{
+        'status': json['status'] == true,
+        'dl': result['download_url'] ?? result['downloadUrl'] ?? result['dl'],
+        'title': result['title'] ?? json['title'],
+        'thumb': result['thumbnail'] ?? result['thumb'] ?? json['thumb'],
+        'duration': result['duration'] ?? json['duration'],
+        'format': result['format'] ?? json['format'],
+      };
+    }
+
+    // Unknown: pass through status so callers can fail consistently.
+    return <String, dynamic>{'status': json['status'] == true};
   }
 
   @override
