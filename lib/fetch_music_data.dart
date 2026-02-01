@@ -413,7 +413,7 @@ class MusicStreamingService {
     final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
     try {
       final response = await _dio.get(
-        'https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3',
+        'https://wambugu-music.vercel.app/download',
         queryParameters: {'url': youtubeUrl},
         options: Options(
           receiveTimeout: _requestTimeout,
@@ -433,15 +433,17 @@ class MusicStreamingService {
           ? (jsonDecode(response.data as String) as Map<String, dynamic>)
           : (response.data as Map<String, dynamic>);
 
-      final bool ok = jsonResponse['status'] == true;
-      final String? dl = jsonResponse['dl'] as String?;
+      final Map<String, dynamic> normalized =
+          _normalizeDownloaderResponse(jsonResponse);
+      final bool ok = normalized['status'] == true;
+      final String? dl = normalized['dl'] as String?;
       if (!ok || dl == null || dl.isEmpty || !dl.startsWith('http')) {
         return null;
       }
 
-      final String title = (jsonResponse['title'] as String?) ?? 'Unknown';
-      final String? thumb = jsonResponse['thumb'] as String?;
-      final int? durationSec = (jsonResponse['duration'] as num?)?.toInt();
+      final String title = (normalized['title'] as String?) ?? 'Unknown';
+      final String? thumb = normalized['thumb'] as String?;
+      final int? durationSec = (normalized['duration'] as num?)?.toInt();
 
       final StreamingQuality inferredQ = _inferQualityFromUrl(dl) ?? quality;
 
@@ -458,6 +460,34 @@ class MusicStreamingService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Normalizes multiple downloader JSON shapes into a legacy flat contract:
+  /// `{ status: bool, dl: String, title?: String, thumb?: String, duration?: num }`.
+  Map<String, dynamic> _normalizeDownloaderResponse(Map<String, dynamic> json) {
+    // Old Okatsu-like: {status, dl, title, thumb, duration}
+    if (json['dl'] != null || json['thumb'] != null) {
+      return <String, dynamic>{
+        'status': json['status'] == true,
+        'dl': json['dl'],
+        'title': json['title'],
+        'thumb': json['thumb'],
+        'duration': json['duration'],
+      };
+    }
+
+    // New API: {status, result:{title, thumbnail, duration, download_url}}
+    final result = json['result'];
+    if (result is Map) {
+      return <String, dynamic>{
+        'status': json['status'] == true,
+        'dl': result['download_url'] ?? result['downloadUrl'] ?? result['dl'],
+        'title': result['title'] ?? json['title'],
+        'thumb': result['thumbnail'] ?? result['thumb'] ?? json['thumb'],
+        'duration': result['duration'] ?? json['duration'],
+      };
+    }
+    return <String, dynamic>{'status': json['status'] == true};
   }
 
   StreamingQuality? _inferQualityFromUrl(String url) {
