@@ -1,8 +1,9 @@
-/*
-Copyright (c) 2025 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
@@ -24,6 +25,7 @@ import 'package:sautifyv2/models/track_info.dart';
 import 'package:sautifyv2/services/dio_client.dart';
 import 'package:sautifyv2/services/image_cache_service.dart';
 import 'package:sautifyv2/services/settings_service.dart';
+import 'package:sautifyv2/services/ytmusic_service.dart';
 
 import '../isolate/playlist_worker.dart' show playlistWorkerEntry;
 
@@ -110,6 +112,12 @@ class AudioPlayerService extends ChangeNotifier {
 
   final MusicStreamingService _streamingService = MusicStreamingService();
   final ImageCacheService _imageCacheService = ImageCacheService();
+  final YTMusicService _ytMusicService = YTMusicService.instance;
+
+  // SEARCH-only autoplay "Up next" state
+  String? _autoUpNextSeededForVideoId;
+  bool _autoUpNextInFlight = false;
+  int _autoUpNextToken = 0;
   // Progressive incremental insertion state
   final Set<int> _materializedIndices = <int>{};
   int? _currentProgressiveWorkerReqId;
@@ -777,6 +785,10 @@ class AudioPlayerService extends ChangeNotifier {
           // Incrementally extend the in-memory queue to keep transitions smooth
           // without rebuilding the entire audio source mid-playback.
           _enqueueInsertion(() => _appendContiguousReadyTail(maxToAppend: 2));
+
+          // For SEARCH playback, start fetching "Up next" early for the new track
+          // so the queue continues seamlessly after this song.
+          _maybeSeedUpNextEarly(reason: 'track-change');
         }
       }
     });
@@ -848,6 +860,10 @@ class AudioPlayerService extends ChangeNotifier {
           LibraryStore.incrementPlayCount(applied);
           _lastRecentVideoId = t.videoId;
         }
+
+        // When playback starts/resumes on a SEARCH track, fetch up-next early
+        // while the song is playing, and append to the current queue.
+        _maybeSeedUpNextEarly(reason: 'play-start');
       }
     });
 
@@ -855,6 +871,132 @@ class AudioPlayerService extends ChangeNotifier {
     // We avoid eagerly rebuilding the audio source here to keep startup fast;
     // the first user-initiated play will prepare and seek to the saved position.
     _seedFromContinueListeningIfNeeded();
+  }
+
+  bool _shouldAutoUpNext() {
+    if (_sourceType != 'SEARCH') return false;
+    if (_player.shuffleModeEnabled) return false;
+    final t = currentTrack;
+    if (t == null) return false;
+    if (t.isLocal) return false;
+    // Avoid growing queues in offline mode (no network permitted).
+    if (SettingsService().offlineMode) return false;
+    return true;
+  }
+
+  void _maybeSeedUpNextEarly({required String reason}) {
+    // Fire-and-forget so we never block playback/UI.
+    () async {
+      if (!_shouldAutoUpNext()) return;
+
+      final t = currentTrack;
+      if (t == null) return;
+
+      // Only fetch when we're at/near the tail to avoid excessive requests.
+      // With the new "single track" search playback, this triggers immediately.
+      final remaining = (_playlist.length - 1) - _currentIndex;
+      if (remaining > 1) return;
+
+      if (_autoUpNextSeededForVideoId == t.videoId) return;
+      if (_autoUpNextInFlight) return;
+
+      _autoUpNextInFlight = true;
+      _autoUpNextSeededForVideoId = t.videoId;
+      final localToken = ++_autoUpNextToken;
+
+      try {
+        final upNext = await _ytMusicService.getUpNextQueue(
+          t.videoId,
+          timeout: const Duration(seconds: 15),
+        );
+        // Superseded or no longer in SEARCH context
+        if (localToken != _autoUpNextToken) return;
+        if (_sourceType != 'SEARCH') return;
+        if (upNext.isEmpty) return;
+
+        // Deduplicate against current queue
+        final existingIds = _playlist.map((e) => e.videoId).toSet();
+        final toAppend = <StreamingData>[];
+        for (final u in upNext) {
+          final id = u.videoId;
+          if (id.isEmpty) continue;
+          if (!RegExp(r'^[a-zA-Z0-9-_]{11}$').hasMatch(id)) continue;
+          if (existingIds.contains(id)) continue;
+          existingIds.add(id);
+          toAppend.add(u);
+          // Keep each fetch bounded to avoid huge queue spikes.
+          if (toAppend.length >= 20) break;
+        }
+        if (toAppend.isEmpty) return;
+
+        // Ensure growable playlist even when restored from fixed-length sources.
+        _playlist = List<StreamingData>.from(_playlist)..addAll(toAppend);
+        notifyListeners();
+        unawaited(LibraryStore.saveQueue(_playlist));
+
+        // Resolve a few upcoming streams early and append them to the audio source
+        // without a full rebuild to avoid stutters.
+        final idsToResolve =
+            toAppend.take(4).map((e) => e.videoId).toList(growable: false);
+        if (idsToResolve.isNotEmpty) {
+          await _batchProcessTracksForAutoplay(idsToResolve);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Up-next seed failed ($reason): $e');
+        }
+      } finally {
+        if (localToken == _autoUpNextToken) {
+          _autoUpNextInFlight = false;
+        }
+      }
+    }();
+  }
+
+  /// Resolve stream URLs for a small set of videoIds and then append any newly
+  /// ready contiguous tail items to the active ConcatenatingAudioSource.
+  Future<void> _batchProcessTracksForAutoplay(List<String> videoIds) async {
+    if (videoIds.isEmpty) return;
+    try {
+      final result = await _streamingService.batchGetStreamingUrls(
+        videoIds,
+        quality: _getPreferredQuality(),
+      );
+
+      bool anyBecameReady = false;
+      for (final streamingData in result.successful) {
+        final index = _playlist.indexWhere(
+          (track) => track.videoId == streamingData.videoId,
+        );
+        if (index == -1) continue;
+
+        final wasReady = _playlist[index].isReady;
+        final old = _playlist[index];
+        final merged = old.copyWith(
+          title: old.title.isNotEmpty ? old.title : streamingData.title,
+          artist: old.artist.isNotEmpty ? old.artist : streamingData.artist,
+          thumbnailUrl: streamingData.thumbnailUrl ?? old.thumbnailUrl,
+          duration: old.duration ?? streamingData.duration,
+          streamUrl: streamingData.streamUrl,
+          quality: streamingData.quality,
+          cachedAt: streamingData.cachedAt,
+          isAvailable: streamingData.isAvailable,
+        );
+        _playlist[index] = merged;
+        if (!wasReady && merged.isReady) {
+          anyBecameReady = true;
+        }
+      }
+
+      if (anyBecameReady) {
+        _enqueueInsertion(() => _appendContiguousReadyTail(maxToAppend: 4));
+        _warmNextConnection();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Autoplay URL prefetch failed: $e');
+      }
+    }
   }
 
   void _seedFromContinueListeningIfNeeded() {
@@ -1687,7 +1829,7 @@ class AudioPlayerService extends ChangeNotifier {
     final beforeIndex = _currentIndex;
     await seek(Duration.zero, index: nextIndex);
 
-    // If target wasn’t ready and nothing changed, try advancing to next ready child.
+    // If target wasnâ€™t ready and nothing changed, try advancing to next ready child.
     if (_currentIndex == beforeIndex && hasMultipleReadyChildren) {
       try {
         await _player.seekToNext();
@@ -2804,7 +2946,7 @@ class AudioPlayerService extends ChangeNotifier {
 
       // Listen for progress via existing receive port listener path
       // We piggyback on rp listener which will put messages through the completer remove logic.
-      // We'll intercept messages by extending listener logic (below) – add handler here via microtask polling.
+      // We'll intercept messages by extending listener logic (below) â€“ add handler here via microtask polling.
 
       // Polling approach: not ideal but minimal invasive (we can restructure later)
       () async {

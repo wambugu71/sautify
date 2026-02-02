@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:dio/dio.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:flutter/foundation.dart';
@@ -61,3 +67,4 @@ class DioClient {
     // No special initialization needed for standard Dio
   }
 }
+

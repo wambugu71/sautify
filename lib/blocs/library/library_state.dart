@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:equatable/equatable.dart';
 import 'package:sautifyv2/models/playlist_models.dart';
 import 'package:sautifyv2/models/stats_model.dart';
@@ -42,3 +48,4 @@ class LibraryState extends Equatable {
   List<Object?> get props =>
       [favorites, recentPlays, playlists, albums, mostPlayed, isReady];
 }
+

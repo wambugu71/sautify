@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 /*
 Small QueueService wrapper that standardizes queue actions and persistence.
 */
@@ -53,3 +59,4 @@ class QueueService {
     await _audio.replacePlaylist(q, initialIndex: 0, autoPlay: autoPlay);
   }
 }
+

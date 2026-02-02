@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter/widgets.dart';
 
 class RestartWidget extends StatefulWidget {
@@ -25,3 +31,4 @@ class _RestartWidgetState extends State<RestartWidget> {
     return KeyedSubtree(key: _key, child: widget.child);
   }
 }
+

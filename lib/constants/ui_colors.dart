@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter/material.dart';
 
 Color bgcolor = Color.fromARGB(255, 12, 11, 11); //16, 16, 17);
@@ -7,3 +13,4 @@ Color cardcolor = Color.fromARGB(255, 39, 39, 40);
 Color iconcolor = Color.fromARGB(255, 255, 255, 255);
 Color playbuttoncolor = Color.fromARGB(255, 31, 184, 85);
 Color splashcolor = Color.fromARGB(255, 0, 255, 34);
+

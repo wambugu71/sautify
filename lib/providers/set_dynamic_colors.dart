@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'dart:io';
 import 'dart:ui';
 
@@ -222,3 +228,4 @@ class SetColors extends ChangeNotifier {
         0.0722 * c.blue / 255;
   }
 }
+

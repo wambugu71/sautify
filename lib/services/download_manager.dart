@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 /*
 DownloadManager: simple queueing download manager with retries, cancel and progress.
 */
@@ -164,3 +170,4 @@ class DownloadManager {
     _events?.close();
   }
 }
+

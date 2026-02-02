@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 class Contents {
   final String name;
   final String artistName;
@@ -56,3 +62,4 @@ class Contents {
     return 'Contents(name: $name, artist: $artistName, type: $type)';
   }
 }
+

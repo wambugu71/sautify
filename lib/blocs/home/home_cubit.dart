@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sautifyv2/services/homeservice.dart';
 
@@ -48,3 +54,4 @@ class HomeCubit extends Cubit<HomeState> {
     _updateFromService();
   }
 }
+

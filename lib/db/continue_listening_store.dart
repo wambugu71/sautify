@@ -1,7 +1,7 @@
-/*
+﻿/*
 Copyright (c) 2026 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
 
 import 'dart:convert';
@@ -125,3 +125,4 @@ class ContinueListeningStore {
     await _box!.delete(_kSessionKey);
   }
 }
+

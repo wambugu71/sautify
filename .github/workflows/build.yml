@@ -50,7 +50,7 @@ jobs:
         run: flutter pub get
 
       - name: ✅ Run tests
-        run: ls #flutter test --coverage
+        run: flutter test
       - name: "Generate icons"
         run: dart run icons_launcher:create
 

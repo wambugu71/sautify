@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sautifyv2/blocs/device_library/device_library_cubit.dart';
@@ -145,3 +151,4 @@ class DeviceSongsScreen extends StatelessWidget {
     );
   }
 }
+

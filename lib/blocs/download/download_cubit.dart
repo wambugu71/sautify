@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -149,7 +155,7 @@ class DownloadCubit extends Cubit<DownloadState> {
         progressTotal: 0,
       ),
     );
-    _emitTargetedEvent(track.videoId, 'Downloading…', isError: false);
+    _emitTargetedEvent(track.videoId, 'Downloadingâ€¦', isError: false);
 
     try {
       final streamingData = await _streamingService.fetchStreamingData(
@@ -473,3 +479,4 @@ class DownloadCubit extends Cubit<DownloadState> {
     return '$left$sep$right';
   }
 }
+

@@ -1,4 +1,10 @@
-﻿import 'dart:io';
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -645,3 +651,4 @@ class _MostPlayedTab extends StatelessWidget {
     );
   }
 }
+

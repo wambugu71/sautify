@@ -1,7 +1,14 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'dart:async';
 
 import 'package:dart_ytmusic_api/yt_music.dart';
 import 'package:flutter/foundation.dart';
+import 'package:sautifyv2/models/streaming_model.dart';
 import 'package:sautifyv2/services/connectivity_service.dart';
 import 'package:sautifyv2/utils/app_config.dart';
 
@@ -156,5 +163,69 @@ class YTMusicService {
       );
     }
     return _ytmusic.getTimedLyrics(videoId).timeout(timeout);
+  }
+
+  /// Fetch "Up next" songs for a given video and map into app queue items.
+  ///
+  /// This returns lightweight [StreamingData] objects without stream URLs.
+  /// The caller (AudioPlayerService) should resolve stream URLs via
+  /// MusicStreamingService before playback.
+  Future<List<StreamingData>> getUpNextQueue(
+    String videoId, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    if (!_initialized) {
+      await initializeIfNeeded(
+        timeout: const Duration(seconds: 20),
+        retries: 1,
+      );
+    }
+
+    // Guard early to avoid unnecessary network calls.
+    if (!RegExp(r'^[a-zA-Z0-9-_]{11}$').hasMatch(videoId)) {
+      throw Exception('Invalid videoId');
+    }
+
+    final List<dynamic> res =
+        await _ytmusic.getUpNexts(videoId).timeout(timeout) as List<dynamic>;
+
+    final out = <StreamingData>[];
+    for (final item in res) {
+      try {
+        final dynamic u = item;
+        final String id = (u.videoId as String?) ?? '';
+        if (id.isEmpty) continue;
+
+        final String title = (u.title as String?) ?? '';
+        final String artist = (u.artists?.name as String?) ?? '';
+
+        String? thumb;
+        final thumbs = u.thumbnails;
+        if (thumbs is List && thumbs.isNotEmpty) {
+          final last = thumbs.last;
+          thumb = (last.url as String?) ?? (last['url'] as String?);
+        }
+
+        final int? durSeconds = u.duration is int ? u.duration as int : null;
+        final duration =
+            durSeconds != null ? Duration(seconds: durSeconds) : null;
+
+        out.add(
+          StreamingData(
+            videoId: id,
+            title: title,
+            artist: artist,
+            thumbnailUrl: thumb,
+            duration: duration,
+            streamUrl: null,
+            isAvailable: false,
+            isLocal: false,
+          ),
+        );
+      } catch (_) {
+        // Skip malformed items; best-effort.
+      }
+    }
+    return out;
   }
 }

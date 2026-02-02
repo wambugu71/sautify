@@ -1,7 +1,7 @@
-/*
-Copyright (c) 2025 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
 
 import 'dart:convert';
@@ -842,3 +842,4 @@ class HomeScreen extends StatelessWidget {
     return s.replaceAll(illegal, '_');
   }
 }
+

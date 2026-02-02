@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:equatable/equatable.dart';
 import 'package:sautifyv2/models/streaming_resolver_preference.dart';
 
@@ -151,3 +157,4 @@ class SettingsState extends Equatable {
         isReady,
       ];
 }
+

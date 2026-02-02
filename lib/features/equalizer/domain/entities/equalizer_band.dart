@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:equatable/equatable.dart';
 
 class EqualizerBand extends Equatable {
@@ -22,3 +28,4 @@ class EqualizerBand extends Equatable {
   @override
   List<Object?> get props => [index, centerFrequencyHz, gainDb];
 }
+

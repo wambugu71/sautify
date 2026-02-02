@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/repositories/equalizer_repository.dart';
@@ -91,3 +97,4 @@ class EqualizerCubit extends Cubit<EqualizerState> {
     await repo.setPitch(pitch);
   }
 }
+

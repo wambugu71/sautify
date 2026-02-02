@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:sautifyv2/models/home/contents.dart';
 
 class Section {
@@ -40,3 +46,4 @@ class HomeData {
     return HomeData(sections: sectionsList);
   }
 }
+

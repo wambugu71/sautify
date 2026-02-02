@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -380,3 +386,4 @@ class _SpeedAndPitchControl extends StatelessWidget {
     );
   }
 }
+

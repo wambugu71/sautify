@@ -1,7 +1,7 @@
-/*
-Copyright (c) 2025 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
 
 import 'dart:async';
@@ -157,7 +157,7 @@ class HomeScreenService implements HomeService {
       if (kDebugMode) {
         debugPrint('Error fetching home sections: $e');
       }
-      // As a last resort in unexpected errors, do not throw—serve cache or empty and refresh later
+      // As a last resort in unexpected errors, do not throwâ€”serve cache or empty and refresh later
       final cached = await _loadCached();
       if (cached != null) {
         _homeData = cached;
@@ -294,3 +294,4 @@ HomeData _parseHomeData(List<dynamic> rawSections) {
 }
 
 enum HomeDataSource { fresh, cache, emptyFallback }
+

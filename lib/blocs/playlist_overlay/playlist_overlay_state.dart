@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:equatable/equatable.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
@@ -45,3 +51,4 @@ class PlaylistOverlayState extends Equatable {
   @override
   List<Object?> get props => [status, videos, error, isBusy, startingTrackId];
 }
+

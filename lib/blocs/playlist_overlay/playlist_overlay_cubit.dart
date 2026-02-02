@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sautifyv2/fetch_music_data.dart';
 import 'package:sautifyv2/playlist_extract.dart';
@@ -70,3 +76,4 @@ class PlaylistOverlayCubit extends Cubit<PlaylistOverlayState> {
         isBusy: busy, startingTrackId: busy ? state.startingTrackId : null));
   }
 }
+

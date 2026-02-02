@@ -1,8 +1,9 @@
-/*
-Copyright (c) 2025 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -566,7 +567,6 @@ class SearchOverlayScreen extends StatelessWidget {
                 context,
                 track,
                 index,
-                state.results,
                 audioService,
               );
             },
@@ -580,7 +580,6 @@ class SearchOverlayScreen extends StatelessWidget {
     BuildContext context,
     StreamingData track,
     int index,
-    List<StreamingData> list,
     AudioPlayerService audioService,
   ) {
     final primaryColor = Theme.of(context).colorScheme.primary;
@@ -596,23 +595,7 @@ class SearchOverlayScreen extends StatelessWidget {
       ),
       child: GestureDetector(
         onTap: () async {
-          final mutablePlaylist = List<StreamingData>.from(list);
           final query = context.read<SearchBloc>().state.query;
-
-          List<StreamingData> capped;
-          int cappedIndex;
-          if (mutablePlaylist.length > 25) {
-            int start = index - 12;
-            if (start < 0) start = 0;
-            if (start > mutablePlaylist.length - 25) {
-              start = mutablePlaylist.length - 25;
-            }
-            capped = mutablePlaylist.sublist(start, start + 25);
-            cappedIndex = index - start;
-          } else {
-            capped = mutablePlaylist;
-            cappedIndex = index;
-          }
 
           // Ensure any currently-playing audio stops immediately, so we don't
           // show new metadata while old audio keeps playing.
@@ -623,8 +606,8 @@ class SearchOverlayScreen extends StatelessWidget {
           () async {
             try {
               await audioService.loadPlaylist(
-                capped,
-                initialIndex: cappedIndex,
+                [track],
+                initialIndex: 0,
                 autoPlay: true,
                 withTransition: true,
                 sourceType: 'SEARCH',

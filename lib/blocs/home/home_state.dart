@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import 'package:equatable/equatable.dart';
 import 'package:sautifyv2/models/home/home.dart';
 import 'package:sautifyv2/services/homeservice.dart';
@@ -41,3 +47,4 @@ class HomeState extends Equatable {
   List<Object?> get props =>
       [homeData, isLoading, isInitialized, error, servedFrom, isStale];
 }
+

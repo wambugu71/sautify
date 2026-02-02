@@ -1,3 +1,9 @@
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
+*/
+
 import '../entities/equalizer_config.dart';
 
 abstract class EqualizerRepository {
@@ -15,3 +21,4 @@ abstract class EqualizerRepository {
   Future<void> setPlaybackSpeed(double speed);
   Future<void> setPitch(double pitch);
 }
+

@@ -1,7 +1,7 @@
-/*
-Copyright (c) 2025 Wambugu Kinyua
-Licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0).
-https://creativecommons.org/licenses/by/4.0/
+﻿/*
+Copyright (c) 2026 Wambugu Kinyua
+All Rights Reserved.
+See LICENSE for terms. Written permission is required for any copying, modification, or use.
 */
 
 import 'dart:async';
@@ -187,7 +187,7 @@ class SearchProvider extends ChangeNotifier {
 
       // If one side failed, surface a soft warning instead of hard error.
       if (songsFailed || albumsFailed) {
-        _error = 'Partial results – some items timed out.';
+        _error = 'Partial results â€“ some items timed out.';
       }
     }
 
@@ -304,3 +304,4 @@ class SearchProvider extends ChangeNotifier {
     await search(_query);
   }
 }
+

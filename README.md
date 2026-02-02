@@ -50,9 +50,10 @@ We source  music from scraping online sources ensuring a vast library of tracks 
 
 ## Availability
 
-Sautify is built to run great on modern Android devices. iOS support is planned. Releases may be shared periodically for testing (when a new issue arises or feature request).
+Sautify is built to run great on modern Android devices. iOS support is planned. Releases may be shared periodically for evaluation.
 
-Report the issues you encounter or suggest features on the [GitHub Issues page](https://github.com/wambugu/sautify/issues).
+Source code in this repository is provided for viewing and inspection only. See the LICENSE file for terms and permission requests.
+
 Though stable releases are prioritized, beta versions may be shared for testing new features until we reach `v1.0.0`. Expect a consistent stream of updates and improvements.
 
 ## Privacy
@@ -62,34 +63,24 @@ No login or account is required to use Sautify. Your data stays on your device: 
 
 ## Feedback
 
-Have an idea, found a bug, or want to shape what comes next? Open an issue or share feedback—your input helps Sautify stay fast, focused, and delightful.
+Have an idea, found a bug, or want to shape what comes next? Feedback is welcome.
+
+If you want to modify or use any part of this repository (code or assets), request written permission from the author (see LICENSE).
 
 ## Known Issues
 
 - Lyrics may not always sync perfectly with the music or they may be unavailable or even wrong.
 - Slow network connections can lead to delays in loading music or lyrics—that's obvious.
 
-## Contributing
+## Permissions
 
-We welcome contributions to Sautify! Whether it's reporting bugs, suggesting features, or submitting code changes, your input is valuable.
-
-### How to Contribute
-
-1. __Report Issues__: If you encounter a bug or have a feature request, please open an issue on our GitHub repository.
-2. __Code Contributions__: If you'd like to contribute code:
-   - Fork the repository.
-   - Create a new branch for your feature or bug fix.
-   - Make your changes and commit them with clear messages.
-   - Submit a pull request for review.
-3. __Review Process__: All contributions will be reviewed by the maintainers. Please be patient as we ensure quality and consistency.
-
-> `Leave a star 🌟` if you like Sautify!
+This project is not open source. Copying, modifying, distributing, or using this code in any project requires prior written permission from the author. See the LICENSE file.
 
 — Enjoy the music.
 
-# Legal Disclaimer
+## Legal Disclaimer
 
-```
+```text
 Sautify does not possess or maintain any association with the songs and other content accessible through the app.
 All songs and other content are the property of their respective owners and are safeguarded by copyright law.
 Sautify holds no liability for any copyright infringement or other violations of intellectual property rights
