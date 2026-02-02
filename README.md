@@ -74,7 +74,7 @@ If you want to modify or use any part of this repository (code or assets), reque
 
 ## Permissions
 
-This project is not open source. Copying, modifying, distributing, or using this code in any project requires prior written permission from the author. See the LICENSE file.
+ Copying, modifying, distributing, or using this code in any project requires prior written permission from the author. See the LICENSE file.
 
 — Enjoy the music.
 
