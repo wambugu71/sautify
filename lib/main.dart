@@ -7,6 +7,7 @@ See LICENSE for terms. Written permission is required for any copying, modificat
 import 'dart:async';
 import 'dart:io';
 
+import 'package:app_links/app_links.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -154,6 +155,8 @@ class MainApp extends StatefulWidget {
 class _MainAppState extends State<MainApp> {
   int _tab = 0;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
@@ -197,6 +200,53 @@ class _MainAppState extends State<MainApp> {
     super.initState();
     _checkConnectivityOnLaunch();
     _watchConnectivity();
+    _initAppLinks();
+  }
+
+  void _initAppLinks() {
+    _appLinks = AppLinks();
+
+    // Handle link when app is in warm state (front or background)
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _handleIncomingLink(uri);
+    }, onError: (err) {
+      debugPrint('Error listening to app links: $err');
+    });
+  }
+
+  void _handleIncomingLink(Uri uri) {
+    debugPrint('Received App Link: $uri');
+    // Basic logic to handle YouTube links or custom sautify:// links
+    final videoId = uri.queryParameters['v'] ?? uri.queryParameters['videoId'];
+    if (videoId != null && videoId.isNotEmpty) {
+      _loadAndPlaySharedSong(videoId);
+    }
+  }
+
+  Future<void> _loadAndPlaySharedSong(String videoId) async {
+    // You can parse video details via ytmusic API or send to Search/Player Cubit.
+    // For now, we will notify the user that a shared track was received.
+    _safeToast(
+      title: 'Shared Track Received',
+      description: 'Loading track...',
+    );
+    try {
+      final audioService = context.read<AudioPlayerCubit>().service;
+      // Ideally, use a method from search_bloc or music_provider to fetch track details.
+      // Below is a placeholder for actual track loading logic.
+      debugPrint('Instruct player to load videoId: $videoId');
+      // For now, show info notification.
+      _safeToast(
+        title: 'Share Link Activated',
+        description: 'Received videoId: $videoId',
+        backgroundColor: Colors.green,
+      );
+    } catch (e) {
+      _safeToast(
+        title: 'Error loading track',
+        backgroundColor: Colors.red,
+      );
+    }
   }
 
   Future<void> _checkConnectivityOnLaunch() async {
@@ -523,7 +573,7 @@ class _MainAppState extends State<MainApp> {
   @override
   void dispose() {
     _connSub?.cancel();
+    _linkSubscription?.cancel();
     super.dispose();
   }
 }
-

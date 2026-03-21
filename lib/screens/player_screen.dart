@@ -30,6 +30,7 @@ import 'package:sautifyv2/screens/current_playlist_screen.dart';
 import 'package:sautifyv2/screens/equalizer_screen.dart';
 import 'package:sautifyv2/widgets/local_artwork_image.dart';
 import 'package:sautifyv2/widgets/playlist_loading_progress.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:squiggly_slider/slider.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -234,6 +235,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   label: 'Current queue',
                   value: 'queue'),
               item(icon: Icons.equalizer, label: 'Equalizer', value: 'eq'),
+              item(icon: Icons.share, label: 'Share', value: 'share'),
               const SizedBox(height: 8),
             ],
           ),
@@ -278,6 +280,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
           builder: (context) => const EqualizerScreen(),
         ),
       );
+      return;
+    }
+    if (action == 'share') {
+      final currentTrack = context.read<AudioPlayerCubit>().state.currentTrack;
+      if (currentTrack != null) {
+        final title = currentTrack.title ?? widget.title;
+        final artist = currentTrack.artist ?? widget.artist;
+        final videoId = currentTrack.videoId;
+
+        if (videoId != null && !currentTrack.isLocal) {
+          final youtubeUrl = 'https://www.youtube.com/watch?v=$videoId';
+          final appLinkUrl = 'https://sautify.app/share?v=$videoId';
+          final message =
+              'Check out "$title" by $artist on Sautify!\n\nOpen in App: $appLinkUrl\nor YouTube: $youtubeUrl';
+          Share.share(message);
+        } else {
+          final message = 'Listening to "$title" by $artist on Sautify';
+          Share.share(message);
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No track playing to share'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
     }
   }
 
@@ -1098,4 +1128,3 @@ class _DownloadProgressDialog extends StatelessWidget {
     );
   }
 }
-

@@ -3,7 +3,7 @@ description: "A music streaming app, alternative  to spotify & youtube music wit
 
 publish_to: "none"
 
-version: 0.0.52
+version: 0.0.53
 # environment specifies the Dart SDK version constraints for this project. between 3.0.0 and 4.0.0
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -73,6 +73,8 @@ dependencies:
 
   intl: any
   image: ^4.7.2
+  share_plus: ^12.0.1
+  app_links: ^7.0.0
 dependency_overrides:
   intl: 0.20.2
   freezed_annotation: ^3.0.0
