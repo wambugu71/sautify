@@ -1,7 +1,22 @@
 # Sautify
 
 Stream smarter. Listen freer.
-__Remember__:  `to support` [![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/wambugu) or [![PayPal](https://img.shields.io/badge/Pay%20Now-FFD140?logo=paypal&logoColor=000&style=for-the-badge)](https://www.paypal.com/ncp/payment/664ZL5XX3TKMG), .
+
+🚀 Sautify has evolved into SautiPlay
+
+Sautify was the foundation of the Sauti music experience. Development has now moved to SautiPlay, a next-generation music player powered by the Sautiflow audio engine.
+SautiPlay introduces a redesigned audio foundation with:
+
+- Custom high-performance audio engine
+- Low-latency playback pipeline
+- Advanced DSP processing
+- Enhanced audio controls
+- ViPER-inspired audio processing integration
+- Improved playback stability and performance
+  
+➡️ Continue the journey with SautiPlay:
+
+[New app](https://github.com/wambugu71/sautiflow)
 
 Sautify "`Sauti`: A swahili word meaning  sound/voice" is a fast, lightweight music app designed to get you from search to sound with zero friction. Clean & minimal design, instant play, and a beautiful player that adapts to your music—so you spend less time tapping and more time listening.
 > We are in early builds, so expect changes in UI/UX, addded/removed features.
